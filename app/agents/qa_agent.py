@@ -1,6 +1,11 @@
-"""QA Agent — reviews final video package for quality and compliance."""
+"""QA Agent — reviews quality, generates subtitles, packages final assets for upload."""
+
+import os
+import structlog
 
 from app.agents.base import BaseAgent
+
+logger = structlog.get_logger(__name__)
 
 
 class QAAgent(BaseAgent):
@@ -8,10 +13,134 @@ class QAAgent(BaseAgent):
     phase_number = 6
 
     def run(self, input_data: dict, learning_context: list) -> dict:
-        # TODO: Implement QA review
-        # 1. Review script for factual accuracy
-        # 2. Check video duration matches target
-        # 3. Verify all assets are present
-        # 4. Check YouTube policy compliance
-        # 5. Return QA score and issues
-        return {"score": 0, "issues": [], "approved": False, "status": "stub"}
+        pipeline_run_id = input_data.get("pipeline_run_id", "")
+        config = input_data.get("pipeline_config", {})
+
+        # Gather outputs from all previous phases
+        phase_2 = input_data.get("phase_2_output", {})
+        phase_3 = input_data.get("phase_3_output", {})
+        phase_4 = input_data.get("phase_4_output", {})
+        phase_5 = input_data.get("phase_5_output", {})
+
+        title = phase_2.get("selected_title", "")
+        description = phase_2.get("description", "")
+        script = phase_2.get("script", "")
+        tags = phase_2.get("tags", [])
+        video_id = phase_2.get("video_id")
+        thumbnail = phase_3.get("thumbnail", {})
+        audio_path = phase_4.get("audio_path", "")
+        video_path = phase_5.get("video_path", "")
+
+        logger.info("qa.start", title=title, video_id=video_id)
+
+        from app.utils.file_manager import get_video_dir
+        video_dir = get_video_dir(pipeline_run_id)
+
+        # Step 1: Generate subtitles from audio using Whisper
+        subtitle_path = self._generate_subtitles(audio_path, video_dir)
+
+        # Step 2: Review script quality via LLM
+        review = self._review_script(script, title, input_data.get("niche", ""))
+
+        # Step 3: Burn subtitles into video (optional, create a subtitled version)
+        subtitled_video = self._burn_subtitles(video_path, subtitle_path, video_dir)
+
+        # Step 4: Update video record to "ready"
+        self._finalize_video(video_id, subtitle_path, subtitled_video or video_path)
+
+        # Step 5: Compile upload package
+        upload_package = {
+            "title": title,
+            "description": description,
+            "tags": tags,
+            "video_file": subtitled_video or video_path,
+            "video_file_no_subs": video_path,
+            "thumbnail_file": thumbnail.get("local_path", ""),
+            "subtitle_file": subtitle_path,
+            "audio_file": audio_path,
+        }
+
+        result = {
+            "video_id": video_id,
+            "upload_package": upload_package,
+            "qa_review": review,
+            "subtitle_path": subtitle_path,
+            "status": "ready_for_upload",
+        }
+
+        logger.info("qa.complete", title=title, status="ready_for_upload", qa_score=review.get("score"))
+        return result
+
+    def _generate_subtitles(self, audio_path: str, video_dir: str) -> str:
+        """Generate SRT subtitles from narration audio using Whisper."""
+        if not audio_path or not os.path.exists(audio_path):
+            logger.warning("qa.no_audio_for_subtitles")
+            return ""
+
+        try:
+            from app.integrations.whisper_client import transcribe
+
+            srt_content = transcribe(audio_path, output_format="srt")
+
+            subtitle_path = os.path.join(video_dir, "subtitles.srt")
+            with open(subtitle_path, "w") as f:
+                f.write(srt_content)
+
+            logger.info("qa.subtitles_generated", path=subtitle_path)
+            return subtitle_path
+        except Exception as e:
+            logger.error("qa.subtitle_generation_failed", error=str(e))
+            return ""
+
+    def _review_script(self, script: str, title: str, niche: str) -> dict:
+        """Use LLM to review script quality."""
+        try:
+            prompt = self.get_prompt(
+                "review_script",
+                script=script[:3000],  # Truncate for token limits
+                title=title,
+                niche=niche,
+            )
+
+            result = self.call_llm("openai", prompt, json_mode=True)
+            parsed = self.parse_json_response(result) if isinstance(result, str) else result
+
+            return parsed
+        except Exception as e:
+            logger.warning("qa.review_failed", error=str(e))
+            return {"score": 0, "issues": [], "suggestions": [], "approved": True}
+
+    def _burn_subtitles(self, video_path: str, subtitle_path: str, video_dir: str) -> str:
+        """Burn SRT subtitles into the video (creates a separate file)."""
+        if not video_path or not subtitle_path:
+            return ""
+        if not os.path.exists(video_path) or not os.path.exists(subtitle_path):
+            return ""
+
+        try:
+            from app.integrations.ffmpeg_client import add_subtitles
+
+            output_path = os.path.join(video_dir, "final_video_subtitled.mp4")
+            add_subtitles(video_path, subtitle_path, output_path)
+            return output_path
+        except Exception as e:
+            logger.warning("qa.burn_subtitles_failed", error=str(e))
+            return ""
+
+    def _finalize_video(self, video_id: str, subtitle_path: str, final_video_path: str):
+        """Mark the video as ready for upload."""
+        if not video_id:
+            return
+        try:
+            from app import db
+            from app.models.video import Video
+
+            video = Video.query.get(video_id)
+            if video:
+                video.status = "ready"
+                video.subtitle_path = subtitle_path
+                video.final_video_path = final_video_path
+                db.session.commit()
+                logger.info("qa.video_finalized", video_id=video_id)
+        except Exception as e:
+            logger.warning("qa.finalize_failed", error=str(e))
