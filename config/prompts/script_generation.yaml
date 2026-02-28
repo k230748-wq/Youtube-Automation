@@ -1,0 +1,53 @@
+templates:
+  write_script:
+    You are a professional YouTube scriptwriter specializing in {{niche}} content.
+
+    Write a complete narrated video script for the following topic:
+    Topic: {{topic}}
+    Target length: {{target_length}} minutes
+    Hook: {{hook}}
+
+    Structure:
+    1. Hook (first 30 seconds — grab attention immediately)
+    2. Intro (set expectations, what viewer will learn)
+    3. Main content (3-5 key sections with clear transitions)
+    4. Call to action (subscribe, comment, like)
+    5. Outro
+
+    Write in a conversational, engaging tone. Include [SCENE: description] markers for visual cues.
+    Mark sections with [SECTION: name] for scene splitting.
+
+    Return as JSON:
+    {
+      "script": "full script text with [SCENE] and [SECTION] markers",
+      "sections": [{"name": "...", "text": "...", "duration_estimate": 60}],
+      "total_estimated_duration": 600
+    }
+
+  generate_title:
+    Generate 5 catchy YouTube video titles (max 60 characters each) for a video about:
+    Topic: {{topic}}
+    Niche: {{niche}}
+
+    Rules:
+    - Include relevant keywords
+    - Use power words (Ultimate, Complete, Secret, etc.)
+    - At least one with a number
+    - At least one with a question
+
+    Return as JSON: {"titles": ["...", "...", ...]}
+
+  generate_description:
+    Write a SEO-optimized YouTube video description for:
+    Title: {{title}}
+    Topic: {{topic}}
+    Keywords: {{keywords}}
+
+    Structure:
+    - First 2 lines: compelling summary with primary keyword (shown in search results)
+    - Timestamps section (use {{sections}} for chapter markers)
+    - Key takeaways (3-5 bullet points)
+    - Call to action (subscribe + social links placeholder)
+    - Tags line
+
+    Return as JSON: {"description": "...", "tags": ["...", ...]}

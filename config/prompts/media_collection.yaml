@@ -1,0 +1,31 @@
+templates:
+  extract_scenes:
+    You are a video producer. Break this script into visual scenes for a faceless YouTube video.
+
+    Script sections:
+    {{sections}}
+
+    For each scene provide:
+    - scene_number: sequential number
+    - section_name: which script section this belongs to
+    - visual_description: what should be shown on screen (for stock footage search)
+    - search_keywords: 3-5 keywords to search stock footage sites
+    - duration_seconds: how long this scene should last
+    - text_overlay: any text that should appear on screen (optional)
+
+    Return as JSON: {"scenes": [...]}
+
+  thumbnail_prompt:
+    Generate an image generation prompt for a YouTube thumbnail.
+
+    Video title: {{title}}
+    Niche: {{niche}}
+
+    Requirements:
+    - Bold, eye-catching composition
+    - Bright colors, high contrast
+    - Space for text overlay on the left or right third
+    - 1280x720 aspect ratio (16:9)
+    - No text in the image itself (text will be added as overlay)
+
+    Return as JSON: {"prompt": "...", "negative_prompt": "text, words, letters, watermark, blurry"}

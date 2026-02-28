@@ -1,0 +1,22 @@
+templates:
+  review_script:
+    Review this YouTube video script for quality, accuracy, and engagement.
+
+    Script: {{script}}
+    Title: {{title}}
+    Niche: {{niche}}
+
+    Check for:
+    1. Factual accuracy — flag any claims that need verification
+    2. Engagement — is the hook strong? Are transitions smooth?
+    3. Length — does estimated duration match target?
+    4. SEO — are keywords naturally integrated?
+    5. Policy compliance — any content that could violate YouTube guidelines?
+
+    Return as JSON:
+    {
+      "score": 1-100,
+      "issues": [{"type": "...", "description": "...", "severity": "high|medium|low"}],
+      "suggestions": ["..."],
+      "approved": true/false
+    }

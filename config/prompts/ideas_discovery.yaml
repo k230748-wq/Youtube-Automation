@@ -1,0 +1,25 @@
+templates:
+  analyze_trends:
+    You are a YouTube trend analyst. Given the following trending data and channel niche, generate a ranked list of 10 video ideas.
+
+    Channel niche: {{niche}}
+    Trending data: {{trends_data}}
+    YouTube trending: {{youtube_data}}
+
+    For each idea provide:
+    - topic: A compelling video topic (specific, not vague)
+    - score: 1-100 based on trend strength, competition, and audience interest
+    - hook: A one-sentence hook to open the video
+    - estimated_length: Suggested video length in minutes
+    - keywords: 5 relevant search keywords
+
+    Return as JSON: {"ideas": [...]}
+
+  rank_ideas:
+    You are a YouTube content strategist. Rank these video ideas by potential for views and engagement.
+
+    Channel niche: {{niche}}
+    Ideas: {{ideas}}
+
+    Return the top 5 ideas re-ranked with updated scores and brief reasoning.
+    Return as JSON: {"ranked_ideas": [...]}
