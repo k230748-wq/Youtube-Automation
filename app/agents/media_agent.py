@@ -134,16 +134,25 @@ class MediaAgent(BaseAgent):
         image_prompt = parsed.get("prompt", f"Eye-catching YouTube thumbnail for {title}")
         negative_prompt = parsed.get("negative_prompt", "text, words, letters, watermark, blurry, low quality")
 
-        # Generate with Ideogram
+        # Generate with Ideogram (try V3, fallback to V2)
         try:
-            from app.integrations.ideogram_client import generate_image_v3
+            from app.integrations.ideogram_client import generate_image_v3, generate_image
 
-            thumbnail = generate_image_v3(
-                prompt=image_prompt,
-                aspect_ratio="16x9",
-                style_type="DESIGN",
-                negative_prompt=negative_prompt,
-            )
+            try:
+                thumbnail = generate_image_v3(
+                    prompt=image_prompt,
+                    aspect_ratio="16x9",
+                    style_type="DESIGN",
+                    negative_prompt=negative_prompt,
+                )
+            except Exception:
+                logger.info("media.thumbnail_v3_failed_trying_v2")
+                thumbnail = generate_image(
+                    prompt=image_prompt,
+                    aspect_ratio="16:9",
+                    style="DESIGN",
+                    negative_prompt=negative_prompt,
+                )
 
             # Download and save the thumbnail
             if thumbnail.get("url"):

@@ -1,5 +1,5 @@
 templates:
-  write_script:
+  write_script: |
     You are a professional YouTube scriptwriter specializing in {{niche}} content.
 
     Write a complete narrated video script for the following topic:
@@ -8,7 +8,7 @@ templates:
     Hook: {{hook}}
 
     Structure:
-    1. Hook (first 30 seconds — grab attention immediately)
+    1. Hook (first 30 seconds - grab attention immediately)
     2. Intro (set expectations, what viewer will learn)
     3. Main content (3-5 key sections with clear transitions)
     4. Call to action (subscribe, comment, like)
@@ -24,7 +24,7 @@ templates:
       "total_estimated_duration": 600
     }
 
-  generate_title:
+  generate_title: |
     Generate 5 catchy YouTube video titles (max 60 characters each) for a video about:
     Topic: {{topic}}
     Niche: {{niche}}
@@ -37,7 +37,7 @@ templates:
 
     Return as JSON: {"titles": ["...", "...", ...]}
 
-  generate_description:
+  generate_description: |
     Write a SEO-optimized YouTube video description for:
     Title: {{title}}
     Topic: {{topic}}

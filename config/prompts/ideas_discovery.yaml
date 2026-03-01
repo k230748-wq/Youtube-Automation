@@ -1,5 +1,5 @@
 templates:
-  analyze_trends:
+  analyze_trends: |
     You are a YouTube trend analyst. Given the following trending data and channel niche, generate a ranked list of 10 video ideas.
 
     Channel niche: {{niche}}
@@ -15,7 +15,7 @@ templates:
 
     Return as JSON: {"ideas": [...]}
 
-  rank_ideas:
+  rank_ideas: |
     You are a YouTube content strategist. Rank these video ideas by potential for views and engagement.
 
     Channel niche: {{niche}}

@@ -1,5 +1,5 @@
 templates:
-  extract_scenes:
+  extract_scenes: |
     You are a video producer. Break this script into visual scenes for a faceless YouTube video.
 
     Script sections:
@@ -15,7 +15,7 @@ templates:
 
     Return as JSON: {"scenes": [...]}
 
-  thumbnail_prompt:
+  thumbnail_prompt: |
     Generate an image generation prompt for a YouTube thumbnail.
 
     Video title: {{title}}

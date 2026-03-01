@@ -25,7 +25,7 @@ class IdeasAgent(BaseAgent):
         youtube_data = self._get_youtube_data(niche)
 
         # Step 3: Use LLM to analyze trends and generate ranked ideas
-        ideas = self._generate_ideas(niche, trends_data, youtube_data, learning_context)
+        ideas = self._generate_ideas(niche, trends_data, youtube_data, learning_context, channel_id)
 
         logger.info("ideas.complete", count=len(ideas))
 
@@ -77,7 +77,7 @@ class IdeasAgent(BaseAgent):
             logger.warning("ideas.youtube_failed", error=str(e))
             return {"search_results": [], "trending": [], "summary": "YouTube data unavailable"}
 
-    def _generate_ideas(self, niche: str, trends_data: dict, youtube_data: dict, learning_context: list) -> list:
+    def _generate_ideas(self, niche: str, trends_data: dict, youtube_data: dict, learning_context: list, channel_id: str = None) -> list:
         """Use LLM to analyze data and generate ranked video ideas."""
         # Format trends data for the prompt
         trends_summary = []
@@ -118,7 +118,7 @@ class IdeasAgent(BaseAgent):
         ideas = parsed.get("ideas", parsed.get("ranked_ideas", []))
 
         # Store ideas in the database
-        self._save_ideas(ideas, niche, input_data_channel_id=None)
+        self._save_ideas(ideas, niche, input_data_channel_id=channel_id)
 
         return ideas
 

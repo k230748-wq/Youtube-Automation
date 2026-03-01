@@ -170,12 +170,15 @@ def generate_image_v3(
     if negative_prompt:
         form_data["negative_prompt"] = negative_prompt
 
+    # V3 requires multipart/form-data — use files= to force multipart encoding
+    multipart_fields = {k: (None, v) for k, v in form_data.items()}
+
     response = httpx.post(
         f"{BASE_URL}/v1/ideogram-v3/generate",
         headers={
             "Api-Key": settings.IDEOGRAM_API_KEY,
         },
-        data=form_data,
+        files=multipart_fields,
         timeout=120,
     )
     response.raise_for_status()
