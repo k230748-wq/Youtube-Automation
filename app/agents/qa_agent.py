@@ -1,4 +1,4 @@
-"""QA Agent — reviews quality, generates subtitles, packages final assets for upload."""
+"""QA Agent — reviews quality, generates styled subtitles, packages final assets."""
 
 import os
 import structlog
@@ -42,8 +42,10 @@ class QAAgent(BaseAgent):
         # Step 2: Review script quality via LLM
         review = self._review_script(script, title, input_data.get("niche", ""))
 
-        # Step 3: Burn subtitles into video (optional, create a subtitled version)
-        subtitled_video = self._burn_subtitles(video_path, subtitle_path, video_dir)
+        # Step 3: Burn styled subtitles into video
+        subtitled_video = self._burn_styled_subtitles(
+            video_path, subtitle_path, video_dir
+        )
 
         # Step 4: Update video record to "ready"
         self._finalize_video(video_id, subtitle_path, subtitled_video or video_path)
@@ -68,7 +70,8 @@ class QAAgent(BaseAgent):
             "status": "ready_for_upload",
         }
 
-        logger.info("qa.complete", title=title, status="ready_for_upload", qa_score=review.get("score"))
+        logger.info("qa.complete", title=title, status="ready_for_upload",
+                     qa_score=review.get("score"))
         return result
 
     def _generate_subtitles(self, audio_path: str, video_dir: str) -> str:
@@ -97,7 +100,7 @@ class QAAgent(BaseAgent):
         try:
             prompt = self.get_prompt(
                 "review_script",
-                script=script[:3000],  # Truncate for token limits
+                script=script[:3000],
                 title=title,
                 niche=niche,
             )
@@ -110,24 +113,30 @@ class QAAgent(BaseAgent):
             logger.warning("qa.review_failed", error=str(e))
             return {"score": 0, "issues": [], "suggestions": [], "approved": True}
 
-    def _burn_subtitles(self, video_path: str, subtitle_path: str, video_dir: str) -> str:
-        """Burn SRT subtitles into the video (creates a separate file)."""
+    def _burn_styled_subtitles(self, video_path: str, subtitle_path: str,
+                                video_dir: str) -> str:
+        """Burn professionally styled subtitles into the video."""
         if not video_path or not subtitle_path:
             return ""
         if not os.path.exists(video_path) or not os.path.exists(subtitle_path):
             return ""
 
         try:
-            from app.integrations.ffmpeg_client import add_subtitles
+            from app.integrations.ffmpeg_client import add_subtitles_styled
 
             output_path = os.path.join(video_dir, "final_video_subtitled.mp4")
-            add_subtitles(video_path, subtitle_path, output_path)
-            return output_path
+            return add_subtitles_styled(
+                video_path, subtitle_path, output_path,
+                font="Sans",
+                fontsize=24,
+                style="outline",
+            )
         except Exception as e:
             logger.warning("qa.burn_subtitles_failed", error=str(e))
             return ""
 
-    def _finalize_video(self, video_id: str, subtitle_path: str, final_video_path: str):
+    def _finalize_video(self, video_id: str, subtitle_path: str,
+                        final_video_path: str):
         """Mark the video as ready for upload."""
         if not video_id:
             return

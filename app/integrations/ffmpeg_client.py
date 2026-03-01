@@ -1,4 +1,4 @@
-"""FFmpeg integration — video assembly, stitching, overlays."""
+"""FFmpeg integration — video assembly, transitions, overlays, styling."""
 
 import os
 import subprocess
@@ -8,10 +8,9 @@ logger = structlog.get_logger(__name__)
 
 
 def stitch_clips(clip_paths: list, output_path: str) -> str:
-    """Concatenate video clips into a single video."""
+    """Concatenate video clips into a single video (hard cuts)."""
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
-    # Create concat file
     concat_file = output_path.replace(".mp4", "_concat.txt")
     with open(concat_file, "w") as f:
         for clip in clip_paths:
@@ -24,12 +23,74 @@ def stitch_clips(clip_paths: list, output_path: str) -> str:
         output_path,
     ]
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
-
     os.remove(concat_file)
 
     if result.returncode != 0:
-        logger.error("ffmpeg.stitch.failed", stderr=result.stderr)
-        raise RuntimeError(f"FFmpeg stitch failed: {result.stderr}")
+        logger.error("ffmpeg.stitch.failed", stderr=result.stderr[:300])
+        raise RuntimeError(f"FFmpeg stitch failed: {result.stderr[:300]}")
+
+    return output_path
+
+
+def stitch_with_crossfade(clip_paths: list, output_path: str,
+                          transition: str = "fade",
+                          duration: float = 0.5) -> str:
+    """Concatenate clips with crossfade transitions between them."""
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+    if len(clip_paths) < 2:
+        if clip_paths:
+            import shutil
+            shutil.copy2(clip_paths[0], output_path)
+        return output_path
+
+    # Get durations for all clips
+    durations = []
+    for cp in clip_paths:
+        try:
+            dur = get_duration(cp)
+            durations.append(dur)
+        except Exception:
+            durations.append(5.0)
+
+    # Build xfade filter chain
+    input_args = []
+    for cp in clip_paths:
+        input_args.extend(["-i", cp])
+
+    filters = []
+    running_duration = durations[0]
+
+    for i in range(1, len(clip_paths)):
+        offset = max(0, running_duration - duration)
+        in_label = f"[{i-1}:v]" if i == 1 else f"[xf{i-2}]"
+        out_label = f"[xf{i-1}]"
+
+        filters.append(
+            f"{in_label}[{i}:v]xfade=transition={transition}"
+            f":duration={duration}:offset={offset}{out_label}"
+        )
+        running_duration += durations[i] - duration
+
+    filter_complex = "; ".join(filters)
+    final_label = f"[xf{len(clip_paths)-2}]"
+
+    cmd = [
+        "ffmpeg", "-y",
+        *input_args,
+        "-filter_complex", filter_complex,
+        "-map", final_label,
+        "-c:v", "libx264", "-preset", "fast",
+        "-pix_fmt", "yuv420p",
+        "-r", "30",
+        output_path,
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+
+    if result.returncode != 0:
+        logger.warning("ffmpeg.xfade_failed_fallback_concat",
+                       stderr=result.stderr[:200])
+        return stitch_clips(clip_paths, output_path)
 
     return output_path
 
@@ -52,14 +113,119 @@ def add_audio(video_path: str, audio_path: str, output_path: str) -> str:
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
 
     if result.returncode != 0:
-        logger.error("ffmpeg.add_audio.failed", stderr=result.stderr)
-        raise RuntimeError(f"FFmpeg add audio failed: {result.stderr}")
+        logger.error("ffmpeg.add_audio.failed", stderr=result.stderr[:300])
+        raise RuntimeError(f"FFmpeg add audio failed: {result.stderr[:300]}")
+
+    return output_path
+
+
+def add_audio_with_background_music(video_path: str, narration_path: str,
+                                    music_path: str, output_path: str,
+                                    music_volume: float = 0.12) -> str:
+    """Add narration + background music with auto-ducking."""
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+    cmd = [
+        "ffmpeg", "-y",
+        "-i", video_path,
+        "-i", narration_path,
+        "-i", music_path,
+        "-filter_complex",
+        f"[1:a]volume=1.0[voice];"
+        f"[2:a]volume={music_volume}[music_raw];"
+        f"[voice][music_raw]amix=inputs=2:duration=first:dropout_transition=3[aout]",
+        "-map", "0:v",
+        "-map", "[aout]",
+        "-c:v", "copy",
+        "-c:a", "aac",
+        "-shortest",
+        output_path,
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+
+    if result.returncode != 0:
+        logger.warning("ffmpeg.bg_music_failed_using_narration_only",
+                       stderr=result.stderr[:200])
+        return add_audio(video_path, narration_path, output_path)
+
+    return output_path
+
+
+def add_subtitles_styled(video_path: str, srt_path: str, output_path: str,
+                         font: str = "Sans", fontsize: int = 24,
+                         style: str = "box") -> str:
+    """Burn styled subtitles into a video.
+
+    Styles:
+      - 'box': white text with semi-transparent black box background
+      - 'outline': white text with thick black outline (no box)
+      - 'bold': large bold white text with outline, centered
+    """
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+    style_map = {
+        "box": (
+            f"Fontname={font},"
+            f"Fontsize={fontsize},"
+            "PrimaryColour=&H00FFFFFF,"
+            "OutlineColour=&H40000000,"
+            "BackColour=&H80000000,"
+            "BorderStyle=4,"
+            "Outline=1,"
+            "Shadow=0,"
+            "MarginV=35,"
+            "Bold=1"
+        ),
+        "outline": (
+            f"Fontname={font},"
+            f"Fontsize={fontsize},"
+            "PrimaryColour=&H00FFFFFF,"
+            "OutlineColour=&H00000000,"
+            "BorderStyle=1,"
+            "Outline=3,"
+            "Shadow=1,"
+            "MarginV=35,"
+            "Bold=1"
+        ),
+        "bold": (
+            f"Fontname={font},"
+            f"Fontsize={int(fontsize * 1.5)},"
+            "PrimaryColour=&H00FFFFFF,"
+            "OutlineColour=&H00000000,"
+            "BorderStyle=1,"
+            "Outline=3,"
+            "Shadow=0,"
+            "Alignment=10,"
+            "MarginV=40,"
+            "Bold=1"
+        ),
+    }
+
+    force_style = style_map.get(style, style_map["outline"])
+
+    # Escape the SRT path for FFmpeg (colons and backslashes)
+    escaped_srt = srt_path.replace("\\", "/").replace(":", "\\:")
+
+    cmd = [
+        "ffmpeg", "-y",
+        "-i", video_path,
+        "-vf", f"subtitles={escaped_srt}:force_style='{force_style}'",
+        "-c:a", "copy",
+        "-c:v", "libx264", "-preset", "fast",
+        output_path,
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+
+    if result.returncode != 0:
+        logger.warning("ffmpeg.styled_subs_failed_trying_basic",
+                       stderr=result.stderr[:200])
+        return add_subtitles(video_path, srt_path, output_path)
 
     return output_path
 
 
 def add_subtitles(video_path: str, srt_path: str, output_path: str) -> str:
-    """Burn subtitles into a video."""
+    """Burn subtitles into a video (basic fallback)."""
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
     cmd = [
@@ -72,8 +238,82 @@ def add_subtitles(video_path: str, srt_path: str, output_path: str) -> str:
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
 
     if result.returncode != 0:
-        logger.error("ffmpeg.subtitles.failed", stderr=result.stderr)
-        raise RuntimeError(f"FFmpeg subtitles failed: {result.stderr}")
+        logger.error("ffmpeg.subtitles.failed", stderr=result.stderr[:300])
+        raise RuntimeError(f"FFmpeg subtitles failed: {result.stderr[:300]}")
+
+    return output_path
+
+
+def normalize_clip(input_path: str, output_path: str,
+                   target_duration: float = None,
+                   width: int = 1920, height: int = 1080,
+                   fps: int = 30,
+                   color_grade: bool = True) -> str:
+    """Normalize a clip: scale, pad, trim, optional color grading."""
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+    vf_filters = [
+        f"scale={width}:{height}:force_original_aspect_ratio=decrease",
+        f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2",
+    ]
+
+    if color_grade:
+        # Subtle color grading: slight brightness + contrast + saturation
+        vf_filters.append("eq=brightness=0.03:contrast=1.06:saturation=1.12")
+        # Gentle vignette for unified look
+        vf_filters.append("vignette=PI/5")
+
+    vf = ",".join(vf_filters)
+
+    cmd = [
+        "ffmpeg", "-y",
+        "-i", input_path,
+    ]
+
+    if target_duration:
+        cmd.extend(["-t", str(target_duration)])
+
+    cmd.extend([
+        "-vf", vf,
+        "-c:v", "libx264", "-preset", "fast",
+        "-an",
+        "-r", str(fps),
+        "-pix_fmt", "yuv420p",
+        output_path,
+    ])
+
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+
+    if result.returncode != 0:
+        logger.error("ffmpeg.normalize.failed", stderr=result.stderr[:300])
+        raise RuntimeError(f"FFmpeg normalize failed: {result.stderr[:300]}")
+
+    return output_path
+
+
+def add_fade_in_out(video_path: str, output_path: str,
+                    fade_in: float = 1.0, fade_out: float = 1.5) -> str:
+    """Add fade from black at start and fade to black at end."""
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+    duration = get_duration(video_path)
+    fade_out_start = max(0, duration - fade_out)
+
+    cmd = [
+        "ffmpeg", "-y",
+        "-i", video_path,
+        "-vf", f"fade=t=in:st=0:d={fade_in},fade=t=out:st={fade_out_start}:d={fade_out}",
+        "-af", f"afade=t=in:st=0:d={fade_in},afade=t=out:st={fade_out_start}:d={fade_out}",
+        "-c:v", "libx264", "-preset", "fast",
+        "-c:a", "aac",
+        output_path,
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+
+    if result.returncode != 0:
+        logger.warning("ffmpeg.fade_failed", stderr=result.stderr[:200])
+        import shutil
+        shutil.copy2(video_path, output_path)
 
     return output_path
 

@@ -1,4 +1,4 @@
-"""Video Agent — assembles final video from clips + audio using FFmpeg."""
+"""Video Agent — assembles final video from clips + audio with transitions and polish."""
 
 import os
 import structlog
@@ -23,6 +23,7 @@ class VideoAgent(BaseAgent):
 
         title = phase_2.get("selected_title", "")
         video_id = phase_2.get("video_id")
+        sections = phase_2.get("sections", [])
         scene_clips = phase_3.get("scene_clips", [])
         audio_path = phase_4.get("audio_path", "")
         audio_duration = phase_4.get("duration_seconds", 0)
@@ -32,39 +33,45 @@ class VideoAgent(BaseAgent):
         if not audio_path:
             raise ValueError("No audio from Phase 4 — cannot assemble video")
 
-        logger.info("video.start", title=title, scenes=len(scene_clips), audio_duration=audio_duration)
+        logger.info("video.start", title=title, scenes=len(scene_clips),
+                     audio_duration=audio_duration)
 
         from app.utils.file_manager import get_video_dir
         video_dir = get_video_dir(pipeline_run_id)
 
-        # Step 1: Download all stock clips
+        # Step 1: Download best clip per scene
         downloaded_clips = self._download_clips(scene_clips, video_dir)
 
-        # Step 2: Trim/loop clips to match scene durations
-        prepared_clips = self._prepare_clips(downloaded_clips, scene_clips, audio_duration, video_dir)
+        # Step 2: Normalize clips (scale, color grade, trim to scene duration)
+        prepared_clips = self._prepare_clips(
+            downloaded_clips, audio_duration, video_dir
+        )
 
-        # Step 3: Concatenate all clips into one video
-        raw_video = self._stitch_video(prepared_clips, video_dir)
+        # Step 3: Stitch with crossfade transitions
+        raw_video = self._stitch_with_transitions(prepared_clips, video_dir)
 
-        # Step 4: Add audio track
+        # Step 4: Add narration audio
         video_with_audio = self._add_audio(raw_video, audio_path, video_dir)
 
-        # Step 5: Update video record
-        self._update_video_record(video_id, video_with_audio)
+        # Step 5: Add fade in/out
+        final_video = self._add_fades(video_with_audio, video_dir)
+
+        # Step 6: Update video record
+        self._update_video_record(video_id, final_video)
 
         result = {
             "video_id": video_id,
-            "video_path": video_with_audio,
+            "video_path": final_video,
             "duration_seconds": audio_duration,
             "clips_used": len(downloaded_clips),
             "title": title,
         }
 
-        logger.info("video.complete", video_path=video_with_audio)
+        logger.info("video.complete", video_path=final_video)
         return result
 
     def _download_clips(self, scene_clips: list, video_dir: str) -> list:
-        """Download stock video clips from URLs."""
+        """Download the best stock clip per scene."""
         from app.integrations.ffmpeg_client import download_clip
 
         clips_dir = os.path.join(video_dir, "clips")
@@ -77,9 +84,9 @@ class VideoAgent(BaseAgent):
                 logger.warning("video.no_clips_for_scene", scene=i)
                 continue
 
-            # Use the first available clip
-            clip = clips[0]
-            url = clip.get("url")
+            # Score and pick best clip
+            best_clip = self._pick_best_clip(clips, scene.get("duration_needed", 10))
+            url = best_clip.get("url")
             if not url:
                 continue
 
@@ -89,100 +96,120 @@ class VideoAgent(BaseAgent):
                 downloaded.append({
                     "path": clip_path,
                     "scene_number": scene.get("scene_number", i),
-                    "duration_needed": scene.get("duration_needed", 30),
-                    "source": clip.get("source"),
+                    "duration_needed": scene.get("duration_needed", 10),
+                    "source": best_clip.get("source"),
                 })
-                logger.info("video.clip_downloaded", scene=i, source=clip.get("source"))
+                logger.info("video.clip_downloaded", scene=i,
+                           source=best_clip.get("source"))
             except Exception as e:
-                logger.warning("video.clip_download_failed", scene=i, url=url, error=str(e))
+                logger.warning("video.clip_download_failed", scene=i,
+                             url=url, error=str(e))
 
         return downloaded
 
-    def _prepare_clips(self, downloaded_clips: list, scene_clips: list, total_audio_duration: float, video_dir: str) -> list:
-        """Trim or loop clips to match required scene durations."""
-        import subprocess
+    def _pick_best_clip(self, clips: list, duration_needed: float) -> dict:
+        """Score clips and return the best one."""
+        if not clips:
+            return {}
+
+        scored = []
+        for clip in clips:
+            score = 0.0
+            clip_dur = clip.get("duration") or 10
+
+            # Duration match (prefer clips close to needed duration)
+            dur_diff = abs(clip_dur - duration_needed)
+            if dur_diff < 3:
+                score += 10
+            elif dur_diff < 8:
+                score += 5
+            else:
+                score += max(0, 10 - dur_diff)
+
+            # Prefer HD quality
+            if clip.get("quality") == "hd":
+                score += 5
+
+            # Prefer Pexels (generally higher quality)
+            if clip.get("source") == "pexels":
+                score += 2
+
+            scored.append((score, clip))
+
+        scored.sort(key=lambda x: x[0], reverse=True)
+        return scored[0][1]
+
+    def _prepare_clips(self, downloaded_clips: list, total_audio_duration: float,
+                       video_dir: str) -> list:
+        """Normalize clips: scale to 1080p, color grade, trim to scene duration."""
+        from app.integrations.ffmpeg_client import normalize_clip
 
         prepared = []
         prep_dir = os.path.join(video_dir, "prepared")
         os.makedirs(prep_dir, exist_ok=True)
 
-        # Calculate duration per clip based on audio length
         num_clips = len(downloaded_clips)
         if num_clips == 0:
             return []
 
         # Distribute audio duration across clips proportionally
-        total_needed = sum(c.get("duration_needed", 30) for c in downloaded_clips)
+        total_needed = sum(c.get("duration_needed", 10) for c in downloaded_clips)
 
         for i, clip in enumerate(downloaded_clips):
-            needed = clip.get("duration_needed", 30)
-            # Scale to actual audio duration
-            target_duration = (needed / total_needed) * total_audio_duration if total_needed > 0 else total_audio_duration / num_clips
+            needed = clip.get("duration_needed", 10)
+            target_duration = (needed / total_needed) * total_audio_duration \
+                if total_needed > 0 else total_audio_duration / num_clips
+
+            # Clamp: min 2s, max 15s per clip (avoids boring long holds)
+            target_duration = max(2.0, min(15.0, target_duration))
 
             input_path = clip["path"]
             output_path = os.path.join(prep_dir, f"prep_{i:03d}.mp4")
 
             try:
-                # Normalize video: scale to 1920x1080, trim to target duration
-                cmd = [
-                    "ffmpeg", "-y",
-                    "-i", input_path,
-                    "-t", str(target_duration),
-                    "-vf", "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2",
-                    "-c:v", "libx264", "-preset", "fast",
-                    "-an",  # strip any existing audio
-                    "-r", "30",
-                    output_path,
-                ]
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
-
-                if result.returncode == 0:
-                    prepared.append(output_path)
-                else:
-                    logger.warning("video.prepare_failed", clip=i, stderr=result.stderr[:200])
+                normalize_clip(
+                    input_path, output_path,
+                    target_duration=target_duration,
+                    color_grade=True,
+                )
+                prepared.append(output_path)
             except Exception as e:
                 logger.warning("video.prepare_error", clip=i, error=str(e))
 
         return prepared
 
-    def _stitch_video(self, clip_paths: list, video_dir: str) -> str:
-        """Concatenate prepared clips into one video."""
-        from app.integrations.ffmpeg_client import stitch_clips
+    def _stitch_with_transitions(self, clip_paths: list, video_dir: str) -> str:
+        """Stitch clips with crossfade transitions."""
+        from app.integrations.ffmpeg_client import stitch_with_crossfade
 
         output_path = os.path.join(video_dir, "raw_video.mp4")
 
         if not clip_paths:
             raise ValueError("No clips to stitch — all downloads/preparations failed")
 
-        # FFmpeg concat requires same codec/resolution — we normalized in _prepare_clips
-        concat_file = os.path.join(video_dir, "concat_list.txt")
-        with open(concat_file, "w") as f:
-            for cp in clip_paths:
-                f.write(f"file '{os.path.abspath(cp)}'\n")
-
-        import subprocess
-        cmd = [
-            "ffmpeg", "-y", "-f", "concat", "-safe", "0",
-            "-i", concat_file,
-            "-c", "copy",
-            output_path,
-        ]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
-
-        os.remove(concat_file)
-
-        if result.returncode != 0:
-            raise RuntimeError(f"FFmpeg stitch failed: {result.stderr[:300]}")
-
-        return output_path
+        return stitch_with_crossfade(
+            clip_paths, output_path,
+            transition="fade",
+            duration=0.5,
+        )
 
     def _add_audio(self, video_path: str, audio_path: str, video_dir: str) -> str:
         """Add narration audio to the stitched video."""
         from app.integrations.ffmpeg_client import add_audio
 
-        output_path = os.path.join(video_dir, "final_video.mp4")
+        output_path = os.path.join(video_dir, "video_with_audio.mp4")
         add_audio(video_path, audio_path, output_path)
         return output_path
+
+    def _add_fades(self, video_path: str, video_dir: str) -> str:
+        """Add fade from black at start, fade to black at end."""
+        from app.integrations.ffmpeg_client import add_fade_in_out
+
+        output_path = os.path.join(video_dir, "final_video.mp4")
+        return add_fade_in_out(
+            video_path, output_path,
+            fade_in=1.0, fade_out=1.5,
+        )
 
     def _update_video_record(self, video_id: str, video_path: str):
         """Update the Video record with final video path."""
