@@ -50,3 +50,28 @@ def call_openai(
             return content
 
     return content
+
+
+def text_to_speech(
+    text: str,
+    output_path: str,
+    voice: str = "onyx",
+    model: str = "tts-1",
+    speed: float = 1.0,
+) -> str:
+    """Generate speech audio from text using OpenAI TTS.
+
+    Voices: alloy, echo, fable, onyx, nova, shimmer
+    Models: tts-1 (fast), tts-1-hd (higher quality)
+    """
+    client = _get_client()
+
+    response = client.audio.speech.create(
+        model=model,
+        voice=voice,
+        input=text,
+        speed=speed,
+    )
+
+    response.stream_to_file(output_path)
+    return output_path

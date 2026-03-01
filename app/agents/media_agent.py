@@ -32,7 +32,7 @@ class MediaAgent(BaseAgent):
         scenes = self._extract_scenes(sections)
 
         # Step 2: Search stock footage for each scene
-        scene_clips = self._fetch_stock_clips(scenes, input_data.get("pipeline_run_id", ""))
+        scene_clips = self._fetch_stock_clips(scenes, input_data.get("pipeline_run_id", ""), video_id)
 
         # Step 3: Generate thumbnail
         thumbnail = self._generate_thumbnail(niche, title, input_data.get("pipeline_run_id", ""))
@@ -64,7 +64,7 @@ class MediaAgent(BaseAgent):
 
         return parsed.get("scenes", [])
 
-    def _fetch_stock_clips(self, scenes: list, pipeline_run_id: str) -> list:
+    def _fetch_stock_clips(self, scenes: list, pipeline_run_id: str, video_id: str = None) -> list:
         """Search Pexels and Pixabay for stock clips matching each scene."""
         scene_clips = []
 
@@ -120,7 +120,7 @@ class MediaAgent(BaseAgent):
             })
 
         # Save clips as assets
-        self._save_clip_assets(scene_clips, pipeline_run_id)
+        self._save_clip_assets(scene_clips, pipeline_run_id, video_id)
 
         return scene_clips
 
@@ -172,7 +172,7 @@ class MediaAgent(BaseAgent):
             logger.error("media.thumbnail_failed", error=str(e))
             return {"error": str(e), "prompt": image_prompt}
 
-    def _save_clip_assets(self, scene_clips: list, pipeline_run_id: str):
+    def _save_clip_assets(self, scene_clips: list, pipeline_run_id: str, video_id: str = None):
         """Save clip references as Asset records."""
         try:
             from app import db
@@ -181,7 +181,7 @@ class MediaAgent(BaseAgent):
             for sc in scene_clips:
                 for clip in sc.get("clips", []):
                     asset = Asset(
-                        video_id=None,  # will be linked later
+                        video_id=video_id,
                         type="stock_clip",
                         url=clip.get("url"),
                         metadata_json={
@@ -195,4 +195,5 @@ class MediaAgent(BaseAgent):
                     db.session.add(asset)
             db.session.commit()
         except Exception as e:
+            db.session.rollback()
             logger.warning("media.save_assets_failed", error=str(e))

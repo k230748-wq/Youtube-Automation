@@ -6,7 +6,7 @@ from config.settings import settings
 BASE_URL = "https://api.elevenlabs.io/v1"
 
 
-def text_to_speech(text: str, voice_id: str, output_path: str, model_id: str = "eleven_monolingual_v1") -> str:
+def text_to_speech(text: str, voice_id: str, output_path: str, model_id: str = "eleven_multilingual_v2") -> str:
     """Generate speech audio from text and save to file."""
     response = httpx.post(
         f"{BASE_URL}/text-to-speech/{voice_id}",

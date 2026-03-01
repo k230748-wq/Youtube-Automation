@@ -1,4 +1,4 @@
-"""Voice Agent — generates narration audio using ElevenLabs TTS."""
+"""Voice Agent — generates narration audio using OpenAI TTS (or ElevenLabs)."""
 
 import os
 import structlog
@@ -6,6 +6,9 @@ import structlog
 from app.agents.base import BaseAgent
 
 logger = structlog.get_logger(__name__)
+
+# OpenAI TTS voices: alloy, echo, fable, onyx, nova, shimmer
+DEFAULT_VOICE = "onyx"
 
 
 class VoiceAgent(BaseAgent):
@@ -20,27 +23,24 @@ class VoiceAgent(BaseAgent):
         # Get script from Phase 2
         phase_2 = input_data.get("phase_2_output", {})
         script = phase_2.get("script", "")
-        sections = phase_2.get("sections", [])
         video_id = phase_2.get("video_id")
         title = phase_2.get("selected_title", "")
 
         if not script:
             raise ValueError("No script from Phase 2 — cannot generate voice")
 
-        # Get voice_id from channel config or pipeline config
-        voice_id = config.get("voice_id")
-        if not voice_id and channel_id:
-            voice_id = self._get_channel_voice(channel_id)
-        if not voice_id:
-            voice_id = self._get_default_voice()
+        # Get voice from config or channel, default to "onyx"
+        voice = config.get("voice", DEFAULT_VOICE)
+        if channel_id:
+            voice = self._get_channel_voice(channel_id) or voice
 
-        logger.info("voice.start", title=title, voice_id=voice_id, script_length=len(script))
+        logger.info("voice.start", title=title, voice=voice, script_length=len(script))
 
         # Step 1: Clean the script for TTS (remove [SCENE:] markers, etc.)
         clean_script = self._clean_script_for_tts(script)
 
-        # Step 2: Generate audio via ElevenLabs
-        audio_path = self._generate_audio(clean_script, voice_id, pipeline_run_id)
+        # Step 2: Generate audio via OpenAI TTS
+        audio_path = self._generate_audio(clean_script, voice, pipeline_run_id)
 
         # Step 3: Get audio duration
         duration = self._get_audio_duration(audio_path)
@@ -48,7 +48,7 @@ class VoiceAgent(BaseAgent):
         result = {
             "video_id": video_id,
             "audio_path": audio_path,
-            "voice_id": voice_id,
+            "voice": voice,
             "duration_seconds": duration,
             "script_char_count": len(clean_script),
             "title": title,
@@ -58,28 +58,12 @@ class VoiceAgent(BaseAgent):
         return result
 
     def _get_channel_voice(self, channel_id: str) -> str:
-        """Get the configured ElevenLabs voice_id for a channel."""
+        """Get the configured voice for a channel."""
         try:
             from app.models.channel import Channel
             channel = Channel.query.get(channel_id)
-            return channel.voice_id if channel else None
+            return channel.voice_id if channel and channel.voice_id else None
         except Exception:
-            return None
-
-    def _get_default_voice(self) -> str:
-        """Get a default ElevenLabs voice if none configured."""
-        try:
-            from app.integrations.elevenlabs_client import list_voices
-            voices = list_voices()
-            # Prefer a male narrative voice
-            for v in voices:
-                labels = v.get("labels", {})
-                if labels.get("use_case") == "narration" or labels.get("description") == "narrative":
-                    return v["voice_id"]
-            # Fallback to first available voice
-            return voices[0]["voice_id"] if voices else None
-        except Exception as e:
-            logger.error("voice.default_voice_failed", error=str(e))
             return None
 
     def _clean_script_for_tts(self, script: str) -> str:
@@ -96,7 +80,6 @@ class VoiceAgent(BaseAgent):
 
         # Remove markdown-style formatting
         clean = clean.replace('**', '').replace('__', '')
-        clean = clean.replace('*', '').replace('_', '')
 
         # Remove multiple newlines
         clean = re.sub(r'\n{3,}', '\n\n', clean)
@@ -106,26 +89,25 @@ class VoiceAgent(BaseAgent):
 
         return clean
 
-    def _generate_audio(self, text: str, voice_id: str, pipeline_run_id: str) -> str:
-        """Generate TTS audio using ElevenLabs."""
-        from app.integrations.elevenlabs_client import text_to_speech
+    def _generate_audio(self, text: str, voice: str, pipeline_run_id: str) -> str:
+        """Generate TTS audio using OpenAI."""
+        from app.integrations.openai_client import text_to_speech
         from app.utils.file_manager import get_video_dir
 
         video_dir = get_video_dir(pipeline_run_id)
         audio_path = os.path.join(video_dir, "narration.mp3")
 
-        # ElevenLabs has a character limit per request (~5000 chars)
-        # If script is longer, split into chunks and concatenate
-        if len(text) > 4500:
-            audio_path = self._generate_chunked_audio(text, voice_id, video_dir)
+        # OpenAI TTS has a 4096 char limit per request
+        if len(text) > 4000:
+            audio_path = self._generate_chunked_audio(text, voice, video_dir)
         else:
-            text_to_speech(text, voice_id, audio_path)
+            text_to_speech(text, audio_path, voice=voice)
 
         return audio_path
 
-    def _generate_chunked_audio(self, text: str, voice_id: str, video_dir: str) -> str:
+    def _generate_chunked_audio(self, text: str, voice: str, video_dir: str) -> str:
         """Split long text into chunks and concatenate audio."""
-        from app.integrations.elevenlabs_client import text_to_speech
+        from app.integrations.openai_client import text_to_speech
 
         # Split at paragraph boundaries
         paragraphs = text.split('\n\n')
@@ -133,7 +115,7 @@ class VoiceAgent(BaseAgent):
         current_chunk = ""
 
         for para in paragraphs:
-            if len(current_chunk) + len(para) > 4500:
+            if len(current_chunk) + len(para) > 4000:
                 if current_chunk:
                     chunks.append(current_chunk.strip())
                 current_chunk = para
@@ -143,23 +125,24 @@ class VoiceAgent(BaseAgent):
         if current_chunk.strip():
             chunks.append(current_chunk.strip())
 
+        logger.info("voice.chunked", chunks=len(chunks), total_chars=len(text))
+
         # Generate audio for each chunk
         chunk_paths = []
         for i, chunk in enumerate(chunks):
             chunk_path = os.path.join(video_dir, f"narration_chunk_{i:03d}.mp3")
-            text_to_speech(chunk, voice_id, chunk_path)
+            text_to_speech(chunk, chunk_path, voice=voice)
             chunk_paths.append(chunk_path)
+            logger.info("voice.chunk_done", chunk=i + 1, total=len(chunks))
 
-        # Concatenate chunks using FFmpeg
+        # Single chunk — just rename
         if len(chunk_paths) == 1:
             final_path = os.path.join(video_dir, "narration.mp3")
             os.rename(chunk_paths[0], final_path)
             return final_path
 
-        from app.integrations.ffmpeg_client import stitch_clips
+        # Concatenate chunks using FFmpeg
         final_path = os.path.join(video_dir, "narration.mp3")
-
-        # Create concat file for audio
         concat_file = os.path.join(video_dir, "audio_concat.txt")
         with open(concat_file, "w") as f:
             for cp in chunk_paths:
@@ -176,8 +159,10 @@ class VoiceAgent(BaseAgent):
 
         # Cleanup chunk files
         for cp in chunk_paths:
-            os.remove(cp)
-        os.remove(concat_file)
+            if os.path.exists(cp):
+                os.remove(cp)
+        if os.path.exists(concat_file):
+            os.remove(concat_file)
 
         return final_path
 
