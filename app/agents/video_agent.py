@@ -50,8 +50,15 @@ class VideoAgent(BaseAgent):
         # Step 3: Stitch with crossfade transitions
         raw_video = self._stitch_with_transitions(prepared_clips, video_dir)
 
-        # Step 4: Add narration audio
-        video_with_audio = self._add_audio(raw_video, audio_path, video_dir)
+        # Step 4: Add narration audio (with background music if configured)
+        music_path = config.get("background_music_path")
+        if music_path and os.path.exists(music_path):
+            video_with_audio = self._add_audio_with_music(
+                raw_video, audio_path, music_path, video_dir,
+                music_volume=config.get("music_volume", 0.12),
+            )
+        else:
+            video_with_audio = self._add_audio(raw_video, audio_path, video_dir)
 
         # Step 5: Add fade in/out
         final_video = self._add_fades(video_with_audio, video_dir)
@@ -200,6 +207,18 @@ class VideoAgent(BaseAgent):
         output_path = os.path.join(video_dir, "video_with_audio.mp4")
         add_audio(video_path, audio_path, output_path)
         return output_path
+
+    def _add_audio_with_music(self, video_path: str, audio_path: str,
+                               music_path: str, video_dir: str,
+                               music_volume: float = 0.12) -> str:
+        """Add narration + background music with auto-ducking."""
+        from app.integrations.ffmpeg_client import add_audio_with_background_music
+
+        output_path = os.path.join(video_dir, "video_with_audio.mp4")
+        return add_audio_with_background_music(
+            video_path, audio_path, music_path, output_path,
+            music_volume=music_volume,
+        )
 
     def _add_fades(self, video_path: str, video_dir: str) -> str:
         """Add fade from black at start, fade to black at end."""

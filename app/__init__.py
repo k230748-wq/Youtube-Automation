@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, jsonify
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
@@ -11,6 +11,7 @@ def create_app():
     app = Flask(__name__)
 
     app.config.from_object("config.settings.Settings")
+    app.config["MAX_CONTENT_LENGTH"] = 500 * 1024 * 1024  # 500MB upload limit
 
     CORS(app, resources={r"/api/*": {"origins": "*"}})
 
@@ -39,5 +40,22 @@ def create_app():
     @app.route("/health")
     def health():
         return {"status": "ok", "service": "youtube-automation"}
+
+    # Error handlers
+    @app.errorhandler(400)
+    def bad_request(e):
+        return jsonify({"error": "Bad request", "message": str(e)}), 400
+
+    @app.errorhandler(404)
+    def not_found(e):
+        return jsonify({"error": "Not found"}), 404
+
+    @app.errorhandler(413)
+    def too_large(e):
+        return jsonify({"error": "File too large. Maximum size is 500MB."}), 413
+
+    @app.errorhandler(500)
+    def server_error(e):
+        return jsonify({"error": "Internal server error"}), 500
 
     return app

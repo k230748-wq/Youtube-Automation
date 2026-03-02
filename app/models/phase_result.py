@@ -15,6 +15,7 @@ class PhaseResult(db.Model):
         db.String(20),
         nullable=False,
         default="running",
+        index=True,
     )  # running | waiting_approval | approved | rejected | completed | failed
     input_data = db.Column(db.JSON, nullable=True)
     output_data = db.Column(db.JSON, nullable=True)

@@ -1,6 +1,7 @@
-"""Videos API — list and manage generated videos."""
+"""Videos API — list, manage, download, and upload voice for generated videos."""
 
-from flask import Blueprint, request, jsonify
+import os
+from flask import Blueprint, request, jsonify, send_file
 
 from app import db
 from app.models.video import Video
@@ -54,3 +55,90 @@ def update_video(video_id):
 
     db.session.commit()
     return jsonify(video.to_dict())
+
+
+@videos_bp.route("/<video_id>/download/<file_type>", methods=["GET"])
+def download_video_file(video_id, file_type):
+    """Download a video file. file_type: video | video_no_subs | thumbnail | audio | subtitle"""
+    video = Video.query.get(video_id)
+    if not video:
+        return jsonify({"error": "Video not found"}), 404
+
+    path_map = {
+        "video": video.final_video_path,
+        "thumbnail": video.thumbnail_path,
+        "audio": video.audio_path,
+        "subtitle": video.subtitle_path,
+    }
+
+    file_path = path_map.get(file_type)
+    if not file_path or not os.path.exists(file_path):
+        return jsonify({"error": f"File not found for type '{file_type}'"}), 404
+
+    return send_file(
+        os.path.abspath(file_path),
+        as_attachment=True,
+        download_name=os.path.basename(file_path),
+    )
+
+
+@videos_bp.route("/<video_id>/upload-voice", methods=["POST"])
+def upload_voice(video_id):
+    """Upload a manual voiceover to replace AI-generated audio.
+
+    Accepts multipart form with 'audio' file field.
+    Stores the file and optionally re-runs Phase 5+6.
+    """
+    video = Video.query.get(video_id)
+    if not video:
+        return jsonify({"error": "Video not found"}), 404
+
+    if "audio" not in request.files:
+        return jsonify({"error": "No audio file provided. Use 'audio' field."}), 400
+
+    audio_file = request.files["audio"]
+    if not audio_file.filename:
+        return jsonify({"error": "Empty filename"}), 400
+
+    # Save uploaded voice file
+    from app.utils.file_manager import get_video_dir
+    pipeline_run_id = video.pipeline_run_id or video.id
+    video_dir = get_video_dir(pipeline_run_id)
+
+    ext = os.path.splitext(audio_file.filename)[1] or ".mp3"
+    voice_path = os.path.join(video_dir, f"manual_voice{ext}")
+    audio_file.save(voice_path)
+
+    # Update video record
+    video.audio_path = voice_path
+    db.session.commit()
+
+    # Optionally re-run Phase 5 (video assembly) + Phase 6 (QA)
+    rerun = request.form.get("rerun_assembly", "false").lower() == "true"
+    task_id = None
+    if rerun and video.pipeline_run_id:
+        from worker.tasks import run_phase
+        task = run_phase.delay(video.pipeline_run_id, 5)
+        task_id = task.id
+
+    return jsonify({
+        "message": "Voice uploaded successfully",
+        "audio_path": voice_path,
+        "rerun_task_id": task_id,
+        "video": video.to_dict(),
+    })
+
+
+@videos_bp.route("/<video_id>/delete", methods=["DELETE"])
+def delete_video(video_id):
+    """Delete a video and its assets."""
+    video = Video.query.get(video_id)
+    if not video:
+        return jsonify({"error": "Video not found"}), 404
+
+    # Delete associated assets
+    Asset.query.filter_by(video_id=video_id).delete()
+
+    db.session.delete(video)
+    db.session.commit()
+    return jsonify({"message": "Video deleted"})

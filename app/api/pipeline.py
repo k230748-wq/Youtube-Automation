@@ -6,6 +6,7 @@ from app import db
 from app.models.pipeline_run import PipelineRun
 from app.models.phase_result import PhaseResult
 from app.models.approval import Approval
+from app.models.learning import LearningLog
 from app.orchestrator.engine import create_pipeline
 
 pipeline_bp = Blueprint("pipeline", __name__)
@@ -119,3 +120,20 @@ def restart_from_phase(pipeline_id, phase_number):
     from worker.tasks import run_pipeline
     task = run_pipeline.delay(pipeline_id)
     return jsonify({"message": f"Pipeline restarting from phase {phase_number}", "pipeline_id": pipeline_id, "task_id": task.id})
+
+
+@pipeline_bp.route("/<pipeline_id>/logs", methods=["GET"])
+def get_pipeline_logs(pipeline_id):
+    """Get learning logs for a pipeline run."""
+    pipeline = PipelineRun.query.get(pipeline_id)
+    if not pipeline:
+        return jsonify({"error": "Pipeline not found"}), 404
+
+    logs = LearningLog.query.filter_by(
+        pipeline_run_id=pipeline_id
+    ).order_by(LearningLog.phase_number).all()
+
+    return jsonify({
+        "pipeline_id": pipeline_id,
+        "logs": [l.to_dict() for l in logs],
+    })
