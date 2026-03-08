@@ -45,7 +45,7 @@ class ScriptAgent(BaseAgent):
         # Step 1: Generate the full video script
         if mode == "story":
             story_premise = top_idea.get("story_premise", "")
-            target_length = max(8, min(target_length, 12))  # Story mode 8-12 min
+            target_length = max(8, min(target_length, 15))  # Story mode 8-15 min
             script_data = self._generate_story_script(topic, hook, target_length, story_premise)
             titles = self._generate_story_titles(topic)
         else:
