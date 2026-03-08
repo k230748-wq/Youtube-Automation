@@ -174,6 +174,17 @@ class PipelineOrchestrator:
             "pipeline_config": pipeline.config,
         }
 
+        # Pull language from channel (defaults to "en")
+        if pipeline.channel_id:
+            try:
+                from app.models.channel import Channel
+                channel = Channel.query.get(pipeline.channel_id)
+                if channel:
+                    input_data["language"] = channel.language or "en"
+            except Exception:
+                pass
+        input_data.setdefault("language", "en")
+
         previous_results = PhaseResult.query.filter(
             PhaseResult.pipeline_run_id == self.pipeline_run_id,
             PhaseResult.phase_number < phase_number,

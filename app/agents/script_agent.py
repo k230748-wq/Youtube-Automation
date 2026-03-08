@@ -6,6 +6,11 @@ from app.agents.base import BaseAgent
 
 logger = structlog.get_logger(__name__)
 
+LANGUAGE_NAMES = {
+    "en": "English",
+    "es": "Spanish",
+}
+
 
 class ScriptAgent(BaseAgent):
     agent_name = "script_agent"
@@ -16,6 +21,7 @@ class ScriptAgent(BaseAgent):
         channel_id = input_data.get("channel_id")
         config = input_data.get("pipeline_config", {})
         mode = config.get("mode", "hybrid")
+        self.language = input_data.get("language", "en")
 
         # Get ideas from Phase 1 output
         phase_1 = input_data.get("phase_1_output", {})
@@ -84,6 +90,9 @@ class ScriptAgent(BaseAgent):
             target_length=str(target_length),
         )
 
+        if self.language != "en":
+            prompt += f"\n\nIMPORTANT: Write the ENTIRE script in {LANGUAGE_NAMES.get(self.language, self.language)}. All narration, dialogue, and section names must be in {LANGUAGE_NAMES.get(self.language, self.language)}."
+
         if learning_str:
             prompt += learning_str
 
@@ -110,6 +119,9 @@ class ScriptAgent(BaseAgent):
             target_length=str(target_length),
             story_premise=story_premise or "Develop the full story arc from the topic.",
         )
+        if self.language != "en":
+            lang_name = LANGUAGE_NAMES.get(self.language, self.language)
+            outline_prompt += f"\n\nIMPORTANT: Write ALL section names and summaries in {lang_name}."
         outline_result = self.call_llm("anthropic", outline_prompt, json_mode=True)
         outline_parsed = self.parse_json_response(outline_result) if isinstance(outline_result, str) else outline_result
         sections_outline = outline_parsed.get("sections", [])
@@ -125,6 +137,9 @@ class ScriptAgent(BaseAgent):
             hook=hook or "Create an emotionally gripping opening",
             outline=outline_str,
         )
+        if self.language != "en":
+            lang_name = LANGUAGE_NAMES.get(self.language, self.language)
+            narrate_prompt += f"\n\nIMPORTANT: Write the ENTIRE narration in {lang_name}. All dialogue, inner thoughts, and descriptions must be in {lang_name}."
         narrate_result = self.call_llm("anthropic", narrate_prompt, json_mode=True, max_tokens=8192)
         narrate_parsed = self.parse_json_response(narrate_result) if isinstance(narrate_result, str) else narrate_result
         logger.info("script.story.narrate_done")
@@ -148,6 +163,8 @@ class ScriptAgent(BaseAgent):
     def _generate_story_titles(self, topic: str) -> list:
         """Generate emotional first-person titles for story mode."""
         prompt = self.get_prompt("generate_title_story", topic=topic)
+        if self.language != "en":
+            prompt += f"\n\nIMPORTANT: Write ALL titles in {LANGUAGE_NAMES.get(self.language, self.language)}."
 
         result = self.call_llm("openai", prompt, json_mode=True)
         parsed = self.parse_json_response(result) if isinstance(result, str) else result
@@ -162,6 +179,8 @@ class ScriptAgent(BaseAgent):
             niche=niche,
             topic=topic,
         )
+        if self.language != "en":
+            prompt += f"\n\nIMPORTANT: Write ALL titles in {LANGUAGE_NAMES.get(self.language, self.language)}."
 
         result = self.call_llm("openai", prompt, json_mode=True)
         parsed = self.parse_json_response(result) if isinstance(result, str) else result
@@ -187,6 +206,8 @@ class ScriptAgent(BaseAgent):
             keywords=", ".join(keywords) if keywords else niche,
             sections=sections_str if sections_str else "No timestamps available",
         )
+        if self.language != "en":
+            prompt += f"\n\nIMPORTANT: Write the description in {LANGUAGE_NAMES.get(self.language, self.language)}."
 
         result = self.call_llm("openai", prompt, json_mode=True)
         parsed = self.parse_json_response(result) if isinstance(result, str) else result

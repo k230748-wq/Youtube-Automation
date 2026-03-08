@@ -10,6 +10,12 @@ logger = structlog.get_logger(__name__)
 # OpenAI TTS voices: alloy, echo, fable, onyx, nova, shimmer
 DEFAULT_VOICE = "onyx"
 
+# Edge TTS voice mapping per language (male narrator voices)
+EDGE_TTS_VOICES = {
+    "en": "en-US-GuyNeural",
+    "es": "es-MX-JorgeNeural",
+}
+
 
 class VoiceAgent(BaseAgent):
     agent_name = "voice_agent"
@@ -34,13 +40,15 @@ class VoiceAgent(BaseAgent):
         if channel_id:
             voice = self._get_channel_voice(channel_id) or voice
 
-        logger.info("voice.start", title=title, voice=voice, script_length=len(script))
+        language = input_data.get("language", "en")
+
+        logger.info("voice.start", title=title, voice=voice, language=language, script_length=len(script))
 
         # Step 1: Clean the script for TTS (remove [SCENE:] markers, etc.)
         clean_script = self._clean_script_for_tts(script)
 
-        # Step 2: Generate audio via OpenAI TTS
-        audio_path = self._generate_audio(clean_script, voice, pipeline_run_id)
+        # Step 2: Generate audio via Edge TTS (language-aware)
+        audio_path = self._generate_audio(clean_script, voice, pipeline_run_id, language=language)
 
         # Step 3: Get audio duration
         duration = self._get_audio_duration(audio_path)
@@ -89,26 +97,23 @@ class VoiceAgent(BaseAgent):
 
         return clean
 
-    def _generate_audio(self, text: str, voice: str, pipeline_run_id: str) -> str:
-        """Generate TTS audio using ElevenLabs (primary) or OpenAI (fallback)."""
+    def _generate_audio(self, text: str, voice: str, pipeline_run_id: str, language: str = "en") -> str:
+        """Generate TTS audio using Edge TTS with language-appropriate voice."""
         from app.utils.file_manager import get_video_dir
 
         video_dir = get_video_dir(pipeline_run_id)
-        audio_path = os.path.join(video_dir, "narration.mp3")
 
-        # Always use chunked for long scripts
-        audio_path = self._generate_chunked_audio(text, voice, video_dir)
+        audio_path = self._generate_chunked_audio(text, voice, video_dir, language=language)
         return audio_path
 
-    def _generate_chunked_audio(self, text: str, voice: str, video_dir: str) -> str:
-        """Split long text into chunks and concatenate audio."""
+    def _generate_chunked_audio(self, text: str, voice: str, video_dir: str, language: str = "en") -> str:
+        """Generate audio using Edge TTS with the correct language voice."""
         import asyncio
         import edge_tts
 
-        # Edge TTS voice — Guy is a warm male narrator
-        edge_voice = "en-US-GuyNeural"
+        edge_voice = EDGE_TTS_VOICES.get(language, EDGE_TTS_VOICES["en"])
 
-        logger.info("voice.generating_edge_tts", total_chars=len(text), voice=edge_voice)
+        logger.info("voice.generating_edge_tts", total_chars=len(text), voice=edge_voice, language=language)
 
         # Generate full audio in one go (edge-tts has no char limit)
         chunk_path = os.path.join(video_dir, "narration_chunk_000.mp3")
