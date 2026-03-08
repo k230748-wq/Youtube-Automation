@@ -31,13 +31,15 @@ class QAAgent(BaseAgent):
         audio_path = phase_4.get("audio_path", "")
         video_path = phase_5.get("video_path", "")
 
-        logger.info("qa.start", title=title, video_id=video_id)
+        language = input_data.get("language", "en")
+
+        logger.info("qa.start", title=title, video_id=video_id, language=language)
 
         from app.utils.file_manager import get_video_dir
         video_dir = get_video_dir(pipeline_run_id)
 
-        # Step 1: Generate subtitles from audio using Whisper
-        subtitle_path = self._generate_subtitles(audio_path, video_dir)
+        # Step 1: Generate subtitles from audio using Whisper (language-aware)
+        subtitle_path = self._generate_subtitles(audio_path, video_dir, language=language)
 
         # Step 2: Review script quality via LLM
         review = self._review_script(script, title, input_data.get("niche", ""))
@@ -74,7 +76,7 @@ class QAAgent(BaseAgent):
                      qa_score=review.get("score"))
         return result
 
-    def _generate_subtitles(self, audio_path: str, video_dir: str) -> str:
+    def _generate_subtitles(self, audio_path: str, video_dir: str, language: str = "en") -> str:
         """Generate SRT subtitles from narration audio using Whisper."""
         if not audio_path or not os.path.exists(audio_path):
             logger.warning("qa.no_audio_for_subtitles")
@@ -83,7 +85,7 @@ class QAAgent(BaseAgent):
         try:
             from app.integrations.whisper_client import transcribe
 
-            srt_content = transcribe(audio_path, output_format="srt")
+            srt_content = transcribe(audio_path, output_format="srt", language=language)
 
             subtitle_path = os.path.join(video_dir, "subtitles.srt")
             with open(subtitle_path, "w") as f:

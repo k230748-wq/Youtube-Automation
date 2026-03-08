@@ -7,23 +7,27 @@ from config.settings import settings
 logger = structlog.get_logger(__name__)
 
 
-def transcribe(audio_path: str, output_format: str = "srt") -> str:
+def transcribe(audio_path: str, output_format: str = "srt", language: str = None) -> str:
     """Transcribe audio to text or subtitle format.
 
     Args:
         audio_path: Path to audio file (mp3, wav, etc.)
         output_format: One of 'srt', 'vtt', 'text', 'json', 'verbose_json'
+        language: ISO-639-1 language code (e.g. 'en', 'es') for better accuracy
 
     Returns:
         Transcription content as string (SRT/VTT/text).
     """
     client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
+    kwargs = {"model": "whisper-1", "response_format": output_format}
+    if language:
+        kwargs["language"] = language
+
     with open(audio_path, "rb") as audio_file:
         transcript = client.audio.transcriptions.create(
-            model="whisper-1",
             file=audio_file,
-            response_format=output_format,
+            **kwargs,
         )
 
     logger.info("whisper.transcribed", format=output_format,
