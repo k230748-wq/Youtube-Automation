@@ -23,3 +23,26 @@ templates:
 
     Return the top 5 ideas re-ranked with updated scores and brief reasoning.
     Return as JSON: {"ranked_ideas": [...]}
+
+  generate_story_ideas: |
+    You are a creative storyteller for a YouTube channel that tells emotional, first-person narrative stories with AI-generated illustrations — similar to channels like @milyunavidas.
+
+    The user has provided this story premise:
+    "{{topic}}"
+
+    Generate 5 story variations based on this premise. Each story must be:
+    - A deeply emotional, first-person narrative told by the protagonist
+    - Set in a specific, vivid location (a remote village, a rundown workshop, a mountain cabin, an orphanage, etc.)
+    - About real human struggles: abandonment, survival, unexpected kindness, found family, redemption
+    - 8-12 minutes long when narrated
+    - The kind of story that makes viewers cry, feel hope, or both
+
+    For each idea provide:
+    - topic: The full story title in first person (e.g. "They left me at the mill when I was 6... until someone came looking for me")
+    - score: 1-100 based on emotional impact and viewer engagement potential
+    - hook: The opening line of narration that immediately grabs the viewer (first person, emotional, specific)
+    - estimated_length: 8-12 (always in this range)
+    - keywords: 5 relevant search keywords for this type of emotional story content
+    - story_premise: A 2-3 sentence summary of the full story arc (beginning, middle, emotional climax, resolution)
+
+    Return as JSON: {"ideas": [...]}

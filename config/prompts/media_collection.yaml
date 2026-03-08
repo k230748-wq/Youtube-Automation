@@ -2,16 +2,154 @@ templates:
   extract_scenes: |
     You are a video producer. Break this script into visual scenes for a faceless YouTube video.
 
+    IMPORTANT RULES:
+    - Create 15-20 scenes total (not more). Each scene lasts 15-30 seconds.
+    - Each scene must clearly match what the narrator is saying at that point.
+    - search_keywords must be 3-5 normal multi-word phrases (e.g. "person using smartphone", "city traffic aerial view"), NOT single letters.
+    - Use ai_image sparingly — only 3-5 scenes max. Prefer stock_video for most scenes.
+
     Script sections:
     {{sections}}
 
     For each scene provide:
     - scene_number: sequential number
     - section_name: which script section this belongs to
-    - visual_description: what should be shown on screen (for stock footage search)
-    - search_keywords: 3-5 keywords to search stock footage sites
-    - duration_seconds: how long this scene should last
+    - visual_description: what should be shown on screen
+    - media_type: "stock_video" or "ai_image" — choose based on the scene content:
+      - "stock_video" for: real-world footage, people, places, actions, nature, everyday objects, technology in use
+      - "ai_image" for: abstract concepts, dramatic visuals, metaphors, futuristic imagery that stock footage cannot capture
+    - search_keywords: (for stock_video only) 3-5 multi-word search phrases for stock footage sites (e.g. ["person typing laptop", "aerial city view", "technology circuit board"])
+    - image_prompt: (for ai_image only) a cinematic image prompt. Must describe: subject, setting, lighting, camera angle, color palette. Example: "Cinematic wide shot of a glowing neural network floating above a dark cityscape, blue and purple neon lighting, dramatic perspective, photorealistic, 8K detail". No text/words/letters in image.
+    - duration_seconds: how long this scene should last (15-30 seconds)
     - text_overlay: any text that should appear on screen (optional)
+
+    Return as JSON: {"scenes": [...]}
+
+  extract_scenes_story: |
+    You are a cinematographer and visual storyteller creating scene-by-scene image prompts for an AI-illustrated narrative video. Think of each image as a FILM STILL from an indie drama — like stills from a Terrence Malick or Asghar Farhadi film. Every image must look like a real photograph of real people in a real place.
+
+    VISUAL STYLE for ALL images:
+    {{style_description}}
+
+    ═══════════════════════════════════════════
+    STEP 1: CHARACTER & SETTING BIBLE
+    ═══════════════════════════════════════════
+    Before writing ANY scenes, you MUST define these and use them consistently:
+
+    MAIN CHARACTER (protagonist):
+    - Gender, age, ethnicity, body type
+    - EXACT hair: color, length, style (e.g. "dark brown hair pulled back in a loose ponytail with wispy bangs")
+    - EXACT clothing: specific garments with colors and textures (e.g. "a faded grey wool crewneck sweater over dark work pants, scuffed brown leather boots")
+    - Distinguishing features (freckles, scar, calloused hands, tired eyes)
+    - YOU MUST COPY-PASTE this full description into EVERY image_prompt they appear in
+
+    SUPPORTING CHARACTERS (1-3 as story requires):
+    - Same level of detail as protagonist
+    - Each with a visually distinct look (different hair color, clothing style, age)
+    - Copy-paste their full descriptions too
+
+    PRIMARY SETTING:
+    - ONE main location described with extreme environmental detail
+    - List 8-10 specific objects/textures visible in this space (e.g. "rusted wrenches hanging on a pegboard wall, a cast-iron wood stove with orange embers visible through the grate, a worn wooden workbench with metal vise, cracked concrete floor with sawdust, a single bare bulb hanging from a cord, a grimy window with condensation, stacked tin cans on shelves, a faded wall calendar, a coiled telephone on the wall")
+    - Copy-paste these environmental details into prompts set here
+
+    SECONDARY SETTINGS (1-2 max):
+    - Same level of environmental detail
+    - Only when the story absolutely requires a location change
+
+    ═══════════════════════════════════════════
+    STEP 2: SCENE COMPOSITION RULES
+    ═══════════════════════════════════════════
+
+    CAMERA ANGLES — you MUST use ALL of these across your scenes (not just one type):
+    1. MEDIUM CLOSE-UP (waist up, face clearly visible) — use for 6-8 scenes
+    2. PROFILE SHOT (character seen from the side) — use for 5-7 scenes
+    3. OVER-THE-SHOULDER (camera behind one person, looking at another) — use for 5-7 scenes
+    4. WIDE SHOT (full room visible, characters smaller in frame) — use for 4-5 scenes
+    5. CLOSE-UP OF HANDS/OBJECTS (hands holding a cup, turning a key, writing) — use for 4-5 scenes
+    6. TWO-SHOT or GROUP SHOT (two or more people in frame together) — use for 5-7 scenes
+
+    COMPOSITION RULES:
+    - Characters positioned OFF-CENTER using rule of thirds (NOT centered in frame)
+    - Include NEGATIVE SPACE — empty areas of wall, ceiling, or background
+    - Show DEPTH — foreground objects slightly blurred, background visible
+    - NEVER just a face looking at camera. Characters must be DOING something: reaching for an object, leaning against a doorframe, stirring a pot, looking down at their hands, turning toward a sound
+    - When two people are in frame, show their SPATIAL RELATIONSHIP — one standing while the other sits, one in a doorway while the other is across the room
+    - Include environmental PROPS in every scene — cups, plates, tools, books, clothing, food items, furniture. These make scenes feel lived-in and real.
+
+    INTERACTION RULES:
+    - At least 12 scenes must show TWO OR MORE people together
+    - Characters should be interacting: talking face-to-face, handing something to each other, sitting together at a table, one comforting another, a child tugging on an adult's sleeve
+    - Show EMOTIONAL body language: slumped shoulders, hands clasped, arms crossed, leaning forward, looking away
+
+    LIGHTING:
+    - Natural and motivated — from windows (soft grey daylight), lamps (warm amber), fires (orange glow), candles
+    - Mix lighting types across scenes: some warmer (lamplight), some cooler (window light)
+    - Shallow depth of field in most scenes
+    - Low-key lighting for emotional moments (more shadows)
+
+    ═══════════════════════════════════════════
+    STEP 3: GENERATE SCENES (30-45 SCENES, 10-15 SECONDS EACH)
+    ═══════════════════════════════════════════
+
+    Script sections:
+    {{sections}}
+
+    Create **30-45 scenes**. Each scene lasts **10-15 seconds**.
+
+    ═══════════════════════════════════════════
+    NARRATION TEXT — CRITICAL RULE
+    ═══════════════════════════════════════════
+    For each scene, copy the EXACT sentences from the script that should be heard while this image is shown. Every word of the script must appear in exactly one scene's narration_text. Do not paraphrase — copy verbatim. The narration_text fields, when concatenated in scene order, must reproduce the COMPLETE script with no gaps and no duplicates.
+
+    ═══════════════════════════════════════════
+    IMAGE REUSE — SAVE GENERATION COST
+    ═══════════════════════════════════════════
+    Approximately 30-40% of scenes should reuse a previous scene's image (set `reuse_scene` to that scene's number). This is for moments where the narration continues a thought but the visual setting hasn't changed — e.g. a character keeps talking in the same room, or a reflection continues in the same location. Always use a DIFFERENT effect than the original scene when reusing. Reuse scenes do NOT need image_prompt, camera_angle, visual_description, or characters_in_scene — only scene_number, narration_text, reuse_scene, effect, and duration_seconds.
+
+    ═══════════════════════════════════════════
+    KEN BURNS EFFECTS
+    ═══════════════════════════════════════════
+    Each scene MUST have an `effect` field — one of:
+    - "slow_zoom_in" — gentle zoom toward center (use for ~25% of scenes)
+    - "slow_zoom_out" — start zoomed in, pull back (use for ~20% of scenes)
+    - "pan_left" — slow horizontal pan from right to left (use for ~15% of scenes)
+    - "pan_right" — slow horizontal pan from left to right (use for ~15% of scenes)
+    - "zoom_to_center" — more dramatic zoom in (use for ~15% of climactic scenes)
+    - "static" — no movement (use sparingly, ~10%, for very short clips or calm moments)
+
+    Vary the effects! Never use the same effect for 3 scenes in a row. Reused scenes MUST have a different effect than their original.
+
+    CRITICAL IMAGE PROMPT RULES:
+    - Each image_prompt must be 80-150 words
+    - ALWAYS start with the camera angle (e.g. "Medium wide shot of..." or "Close-up of..." or "Over-the-shoulder view from behind...")
+    - ALWAYS include the FULL character description (copy-paste from bible — every detail)
+    - ALWAYS include the FULL setting description (copy-paste from bible — specific objects, textures)
+    - ALWAYS describe a specific ACTION the character is doing
+    - ALWAYS specify lighting source and quality
+    - Do NOT include the style prefix — it will be added automatically
+    - NO text, words, letters, logos, or watermarks in any image
+
+    For ORIGINAL scenes (new image needed), provide:
+    - scene_number: sequential number
+    - section_name: which script section this belongs to
+    - narration_text: the EXACT verbatim sentences from the script heard during this scene
+    - visual_description: brief 1-sentence summary
+    - media_type: "ai_image" (always)
+    - camera_angle: which of the 6 camera types this uses
+    - characters_in_scene: list of which characters appear
+    - image_prompt: the full detailed prompt following all rules above
+    - duration_seconds: 10-15 seconds
+    - effect: one of the 6 Ken Burns effects listed above
+    - reuse_scene: null
+    - text_overlay: optional text on screen (use sparingly)
+
+    For REUSE scenes (reuses a previous scene's image), provide:
+    - scene_number: sequential number
+    - narration_text: the EXACT verbatim sentences from the script heard during this scene
+    - reuse_scene: the scene_number of the original scene whose image to reuse
+    - effect: a DIFFERENT Ken Burns effect than the original scene used
+    - duration_seconds: 10-15 seconds
 
     Return as JSON: {"scenes": [...]}
 

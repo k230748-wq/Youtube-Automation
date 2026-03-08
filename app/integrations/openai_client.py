@@ -52,6 +52,26 @@ def call_openai(
     return content
 
 
+def generate_image(
+    prompt: str,
+    size: str = "1536x1024",
+    quality: str = "medium",
+    n: int = 1,
+) -> bytes:
+    """Generate an image using GPT Image 1. Returns raw PNG bytes."""
+    import base64
+
+    client = _get_client()
+    response = client.images.generate(
+        model="gpt-image-1",
+        prompt=prompt,
+        size=size,
+        quality=quality,
+        n=n,
+    )
+    return base64.b64decode(response.data[0].b64_json)
+
+
 def text_to_speech(
     text: str,
     output_path: str,

@@ -199,6 +199,19 @@ def add_subtitles_styled(video_path: str, srt_path: str, output_path: str,
             "MarginV=40,"
             "Bold=1"
         ),
+        "minimal": (
+            f"Fontname={font},"
+            f"Fontsize={int(fontsize * 0.75)},"
+            "PrimaryColour=&H00FFFFFF,"
+            "OutlineColour=&H50000000,"
+            "BackColour=&H00000000,"
+            "BorderStyle=1,"
+            "Outline=1,"
+            "Shadow=0,"
+            "MarginV=25,"
+            "Bold=0,"
+            "Spacing=0.5"
+        ),
     }
 
     force_style = style_map.get(style, style_map["outline"])
@@ -330,6 +343,79 @@ def get_duration(file_path: str) -> float:
     if result.returncode != 0:
         raise RuntimeError(f"FFprobe failed: {result.stderr}")
     return float(result.stdout.strip())
+
+
+def image_to_video(image_path: str, output_path: str,
+                    duration: float = 5.0,
+                    width: int = 1920, height: int = 1080,
+                    fps: int = 30,
+                    zoom: bool = True,
+                    effect: str = "slow_zoom_in") -> str:
+    """Convert a still image to a video clip with Ken Burns effects.
+
+    Effects:
+      - slow_zoom_in: gentle zoom from 1.0x to 1.06x (centered)
+      - slow_zoom_out: start at 1.06x, pull back to 1.0x (centered)
+      - pan_left: slow horizontal pan from right to left at 1.03x
+      - pan_right: slow horizontal pan from left to right at 1.03x
+      - zoom_to_center: more dramatic zoom from 1.0x to 1.10x (centered)
+      - static: no movement
+
+    When zoom=False: static frame regardless of effect.
+    """
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+    if zoom and effect != "static":
+        total_frames = int(duration * fps)
+
+        if effect == "slow_zoom_out":
+            z_expr = f"1.06-0.06/{total_frames}*on"
+            x_expr = "iw/2-(iw/zoom/2)"
+            y_expr = "ih/2-(ih/zoom/2)"
+        elif effect == "pan_left":
+            z_expr = "1.03"
+            x_expr = f"(iw-iw/zoom)*({total_frames}-on)/{total_frames}"
+            y_expr = "ih/2-(ih/zoom/2)"
+        elif effect == "pan_right":
+            z_expr = "1.03"
+            x_expr = f"(iw-iw/zoom)*on/{total_frames}"
+            y_expr = "ih/2-(ih/zoom/2)"
+        elif effect == "zoom_to_center":
+            z_expr = f"1+0.10/{total_frames}*on"
+            x_expr = "iw/2-(iw/zoom/2)"
+            y_expr = "ih/2-(ih/zoom/2)"
+        else:  # slow_zoom_in (default)
+            z_expr = f"1+0.06/{total_frames}*on"
+            x_expr = "iw/2-(iw/zoom/2)"
+            y_expr = "ih/2-(ih/zoom/2)"
+
+        zoompan = (
+            f"zoompan=z='{z_expr}':x='{x_expr}':y='{y_expr}'"
+            f":d={total_frames}:s={width}x{height}:fps={fps}"
+        )
+        vf = f"scale=3840:2160:flags=lanczos,{zoompan}"
+    else:
+        vf = f"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:black"
+
+    cmd = [
+        "ffmpeg", "-y",
+        "-loop", "1",
+        "-i", image_path,
+        "-vf", vf,
+        "-t", str(duration),
+        "-c:v", "libx264", "-preset", "fast",
+        "-pix_fmt", "yuv420p",
+        "-r", str(fps),
+        "-an",
+        output_path,
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
+
+    if result.returncode != 0:
+        logger.error("ffmpeg.image_to_video.failed", stderr=result.stderr[:300])
+        raise RuntimeError(f"FFmpeg image_to_video failed: {result.stderr[:300]}")
+
+    return output_path
 
 
 def download_clip(url: str, output_path: str) -> str:

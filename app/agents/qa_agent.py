@@ -57,7 +57,7 @@ class QAAgent(BaseAgent):
             "tags": tags,
             "video_file": subtitled_video or video_path,
             "video_file_no_subs": video_path,
-            "thumbnail_file": thumbnail.get("local_path", ""),
+            "thumbnail_file": thumbnail.get("local_path", "") if thumbnail else "",
             "subtitle_file": subtitle_path,
             "audio_file": audio_path,
         }
@@ -128,8 +128,8 @@ class QAAgent(BaseAgent):
             return add_subtitles_styled(
                 video_path, subtitle_path, output_path,
                 font="Sans",
-                fontsize=24,
-                style="outline",
+                fontsize=20,
+                style="minimal",
             )
         except Exception as e:
             logger.warning("qa.burn_subtitles_failed", error=str(e))

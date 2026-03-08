@@ -113,14 +113,17 @@ class BaseAgent(ABC):
             for log in logs
         ]
 
-    def call_llm(self, provider: str, prompt: str, system_prompt: str = None, json_mode: bool = True) -> dict | str:
+    def call_llm(self, provider: str, prompt: str, system_prompt: str = None, json_mode: bool = True, max_tokens: int = None) -> dict | str:
         """Call an LLM provider (openai, anthropic, perplexity)."""
         if provider == "openai":
             from app.integrations.openai_client import call_openai
             return call_openai(prompt, system_prompt=system_prompt, json_mode=json_mode)
         elif provider == "anthropic":
             from app.integrations.anthropic_client import call_anthropic
-            return call_anthropic(prompt, system_prompt=system_prompt, json_mode=json_mode)
+            kwargs = {"prompt": prompt, "system_prompt": system_prompt, "json_mode": json_mode}
+            if max_tokens:
+                kwargs["max_tokens"] = max_tokens
+            return call_anthropic(**kwargs)
         elif provider == "perplexity":
             from app.integrations.perplexity_client import call_perplexity
             return call_perplexity(prompt, system_prompt=system_prompt)
@@ -141,12 +144,28 @@ class BaseAgent(ABC):
         # Try extracting JSON from markdown code blocks
         if "```json" in response:
             start = response.index("```json") + 7
-            end = response.index("```", start)
+            # Handle missing closing ``` by using end of string
+            try:
+                end = response.index("```", start)
+            except ValueError:
+                end = len(response)
             return json.loads(response[start:end].strip())
 
         if "```" in response:
             start = response.index("```") + 3
-            end = response.index("```", start)
+            try:
+                end = response.index("```", start)
+            except ValueError:
+                end = len(response)
             return json.loads(response[start:end].strip())
+
+        # Try finding first { to last } as JSON object
+        first_brace = response.find("{")
+        last_brace = response.rfind("}")
+        if first_brace != -1 and last_brace > first_brace:
+            try:
+                return json.loads(response[first_brace:last_brace + 1])
+            except json.JSONDecodeError:
+                pass
 
         raise ValueError(f"Could not parse JSON from response: {response[:200]}")

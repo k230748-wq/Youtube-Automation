@@ -51,3 +51,74 @@ templates:
     - Tags line
 
     Return as JSON: {"description": "...", "tags": ["...", ...]}
+
+  write_script_story_outline: |
+    You are a master storyteller planning an emotional, first-person YouTube story video — like the channel @milyunavidas.
+
+    Story premise: {{topic}}
+    Story arc: {{story_premise}}
+    Target length: {{target_length}} minutes of narration
+    Opening hook: {{hook}}
+
+    Plan 6-8 sections for this story. For each section, provide:
+    - name: a short section title
+    - summary: 2-3 sentences describing what happens in this section, key emotions, dialogue beats, and sensory details to include
+    - duration_estimate: seconds (total across all sections should equal {{target_length}} × 60)
+
+    STRUCTURE:
+    - Opening hook (20-30s — drop the viewer into the most gripping moment)
+    - Backstory (1-2 min — the world before everything changed)
+    - Rising action (3-4 min — events unfold, tension builds, new characters)
+    - Climax (2-3 min — emotional peak, revelation, confrontation)
+    - Resolution (1-2 min — what happened after, how things changed)
+    - Closing (20-30s — reflective final thought)
+
+    Return as JSON:
+    {
+      "sections": [{"name": "...", "summary": "...", "duration_estimate": 90}],
+      "total_estimated_duration": total_seconds
+    }
+
+  write_script_story_narrate: |
+    You are a master storyteller writing narration for an emotional, first-person YouTube story video — like the channel @milyunavidas.
+
+    Story premise: {{topic}}
+    Opening hook: {{hook}}
+
+    Here is the section outline you must follow:
+    {{outline}}
+
+    Now write the FULL first-person narration text for ALL sections above, in order. Combine them into one continuous story.
+
+    WRITING STYLE:
+    - First person narration throughout. The protagonist is telling THEIR story.
+    - Raw, emotional, intimate tone — like confiding in a close friend
+    - Vivid sensory details: describe what you see, hear, smell, feel
+    - Show emotions through actions, not just statements ("My hands trembled as I opened the door" not "I was scared")
+    - Slow, deliberate pacing — let moments breathe. Describe silence, waiting, small details.
+    - Include dialogue between characters (in quotes). Make it natural, not formal.
+    - Do NOT include educational content, lists, tips, or calls to action.
+    - Do NOT break the first-person narrative voice.
+
+    Return as JSON with ONLY sections (no separate "script" field — we will join them):
+    {
+      "sections": [{"name": "section name from outline", "text": "full narration for this section"}]
+    }
+
+  generate_title_story: |
+    Generate 5 emotional, first-person YouTube video titles for this story:
+    Story: {{topic}}
+
+    Rules:
+    - First person voice ("I was left at...", "They abandoned me...", "Nobody came for me until...")
+    - Maximum 80 characters
+    - Use ellipsis (...) for suspense
+    - Emotional, dramatic, specific — not generic
+    - Include a twist or hook element that makes people want to know what happens
+
+    Examples of good titles:
+    - "They left me working in a mill... until someone came looking for me"
+    - "I walked barefoot in the storm... until I found the only door that opened"
+    - "Nobody would adopt me... until what happened on the coldest night"
+
+    Return as JSON: {"titles": ["...", "...", ...]}

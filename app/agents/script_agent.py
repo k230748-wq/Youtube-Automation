@@ -15,6 +15,7 @@ class ScriptAgent(BaseAgent):
         niche = input_data.get("niche", "")
         channel_id = input_data.get("channel_id")
         config = input_data.get("pipeline_config", {})
+        mode = config.get("mode", "hybrid")
 
         # Get ideas from Phase 1 output
         phase_1 = input_data.get("phase_1_output", {})
@@ -24,19 +25,26 @@ class ScriptAgent(BaseAgent):
             raise ValueError("No ideas from Phase 1 — cannot generate script")
 
         # Pick the top idea (highest score)
-        top_idea = sorted(ideas, key=lambda x: x.get("score", 0), reverse=True)[0]
+        top_idea = sorted(ideas, key=lambda x: int(x.get("score", 0)) if str(x.get("score", 0)).isdigit() else 0, reverse=True)[0]
         topic = top_idea.get("topic", "")
         hook = top_idea.get("hook", "")
-        target_length = top_idea.get("estimated_length", 10)
+        try:
+            target_length = int(top_idea.get("estimated_length", 10))
+        except (ValueError, TypeError):
+            target_length = 10
         keywords = top_idea.get("keywords", [])
 
-        logger.info("script.start", topic=topic, target_length=target_length)
+        logger.info("script.start", topic=topic, target_length=target_length, mode=mode)
 
         # Step 1: Generate the full video script
-        script_data = self._generate_script(niche, topic, hook, target_length, learning_context)
-
-        # Step 2: Generate title options
-        titles = self._generate_titles(niche, topic, keywords)
+        if mode == "story":
+            story_premise = top_idea.get("story_premise", "")
+            target_length = max(8, min(target_length, 12))  # Story mode 8-12 min
+            script_data = self._generate_story_script(topic, hook, target_length, story_premise)
+            titles = self._generate_story_titles(topic)
+        else:
+            script_data = self._generate_script(niche, topic, hook, target_length, learning_context)
+            titles = self._generate_titles(niche, topic, keywords)
 
         # Step 3: Generate description and tags
         desc_data = self._generate_description(niche, topic, titles[0] if titles else topic, keywords, script_data.get("sections", []))
@@ -87,6 +95,65 @@ class ScriptAgent(BaseAgent):
             "sections": parsed.get("sections", []),
             "total_estimated_duration": parsed.get("total_estimated_duration", target_length * 60),
         }
+
+    def _generate_story_script(self, topic: str, hook: str, target_length: int,
+                                story_premise: str) -> dict:
+        """Generate a first-person emotional narrative script for story mode (two-step)."""
+        import json as _json
+
+        # Step 1: Generate the outline (section structure, summaries, durations)
+        logger.info("script.story.outline_start")
+        outline_prompt = self.get_prompt(
+            "write_script_story_outline",
+            topic=topic,
+            hook=hook or "Create an emotionally gripping opening",
+            target_length=str(target_length),
+            story_premise=story_premise or "Develop the full story arc from the topic.",
+        )
+        outline_result = self.call_llm("anthropic", outline_prompt, json_mode=True)
+        outline_parsed = self.parse_json_response(outline_result) if isinstance(outline_result, str) else outline_result
+        sections_outline = outline_parsed.get("sections", [])
+        total_duration = outline_parsed.get("total_estimated_duration", target_length * 60)
+        logger.info("script.story.outline_done", sections=len(sections_outline))
+
+        # Step 2: Write the full narration given the outline
+        logger.info("script.story.narrate_start")
+        outline_str = _json.dumps(sections_outline, indent=2)
+        narrate_prompt = self.get_prompt(
+            "write_script_story_narrate",
+            topic=topic,
+            hook=hook or "Create an emotionally gripping opening",
+            outline=outline_str,
+        )
+        narrate_result = self.call_llm("anthropic", narrate_prompt, json_mode=True, max_tokens=8192)
+        narrate_parsed = self.parse_json_response(narrate_result) if isinstance(narrate_result, str) else narrate_result
+        logger.info("script.story.narrate_done")
+
+        # Merge outline durations into narration sections and build full script
+        narrated_sections = narrate_parsed.get("sections", [])
+        script_parts = []
+        for i, section in enumerate(narrated_sections):
+            if i < len(sections_outline):
+                section["duration_estimate"] = sections_outline[i].get("duration_estimate", 120)
+            else:
+                section.setdefault("duration_estimate", 120)
+            script_parts.append(section.get("text", ""))
+
+        return {
+            "script": "\n\n".join(script_parts),
+            "sections": narrated_sections,
+            "total_estimated_duration": total_duration,
+        }
+
+    def _generate_story_titles(self, topic: str) -> list:
+        """Generate emotional first-person titles for story mode."""
+        prompt = self.get_prompt("generate_title_story", topic=topic)
+
+        result = self.call_llm("openai", prompt, json_mode=True)
+        parsed = self.parse_json_response(result) if isinstance(result, str) else result
+
+        titles = parsed.get("titles", [])
+        return titles if titles else [topic]
 
     def _generate_titles(self, niche: str, topic: str, keywords: list) -> list:
         """Generate YouTube title options."""

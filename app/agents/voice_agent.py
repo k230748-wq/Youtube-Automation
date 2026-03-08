@@ -90,50 +90,36 @@ class VoiceAgent(BaseAgent):
         return clean
 
     def _generate_audio(self, text: str, voice: str, pipeline_run_id: str) -> str:
-        """Generate TTS audio using OpenAI."""
-        from app.integrations.openai_client import text_to_speech
+        """Generate TTS audio using ElevenLabs (primary) or OpenAI (fallback)."""
         from app.utils.file_manager import get_video_dir
 
         video_dir = get_video_dir(pipeline_run_id)
         audio_path = os.path.join(video_dir, "narration.mp3")
 
-        # OpenAI TTS has a 4096 char limit per request
-        if len(text) > 4000:
-            audio_path = self._generate_chunked_audio(text, voice, video_dir)
-        else:
-            text_to_speech(text, audio_path, voice=voice)
-
+        # Always use chunked for long scripts
+        audio_path = self._generate_chunked_audio(text, voice, video_dir)
         return audio_path
 
     def _generate_chunked_audio(self, text: str, voice: str, video_dir: str) -> str:
         """Split long text into chunks and concatenate audio."""
-        from app.integrations.openai_client import text_to_speech
+        import asyncio
+        import edge_tts
 
-        # Split at paragraph boundaries
-        paragraphs = text.split('\n\n')
-        chunks = []
-        current_chunk = ""
+        # Edge TTS voice — Guy is a warm male narrator
+        edge_voice = "en-US-GuyNeural"
 
-        for para in paragraphs:
-            if len(current_chunk) + len(para) > 4000:
-                if current_chunk:
-                    chunks.append(current_chunk.strip())
-                current_chunk = para
-            else:
-                current_chunk += "\n\n" + para
+        logger.info("voice.generating_edge_tts", total_chars=len(text), voice=edge_voice)
 
-        if current_chunk.strip():
-            chunks.append(current_chunk.strip())
+        # Generate full audio in one go (edge-tts has no char limit)
+        chunk_path = os.path.join(video_dir, "narration_chunk_000.mp3")
+        chunk_paths = [chunk_path]
 
-        logger.info("voice.chunked", chunks=len(chunks), total_chars=len(text))
+        async def _generate():
+            communicate = edge_tts.Communicate(text, edge_voice)
+            await communicate.save(chunk_path)
 
-        # Generate audio for each chunk
-        chunk_paths = []
-        for i, chunk in enumerate(chunks):
-            chunk_path = os.path.join(video_dir, f"narration_chunk_{i:03d}.mp3")
-            text_to_speech(chunk, chunk_path, voice=voice)
-            chunk_paths.append(chunk_path)
-            logger.info("voice.chunk_done", chunk=i + 1, total=len(chunks))
+        asyncio.run(_generate())
+        logger.info("voice.chunk_done", chunk=1, total=1)
 
         # Single chunk — just rename
         if len(chunk_paths) == 1:

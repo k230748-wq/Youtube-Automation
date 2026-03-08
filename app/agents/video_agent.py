@@ -43,8 +43,10 @@ class VideoAgent(BaseAgent):
         downloaded_clips = self._download_clips(scene_clips, video_dir)
 
         # Step 2: Normalize clips (scale, color grade, trim to scene duration)
+        mode = config.get("mode", "hybrid")
         prepared_clips = self._prepare_clips(
-            downloaded_clips, audio_duration, video_dir
+            downloaded_clips, audio_duration, video_dir,
+            zoom=True,  # Always enable Ken Burns (story mode uses per-scene effects)
         )
 
         # Step 3: Stitch with crossfade transitions
@@ -78,7 +80,7 @@ class VideoAgent(BaseAgent):
         return result
 
     def _download_clips(self, scene_clips: list, video_dir: str) -> list:
-        """Download the best stock clip per scene."""
+        """Download the best stock clip per scene, or use local AI images."""
         from app.integrations.ffmpeg_client import download_clip
 
         clips_dir = os.path.join(video_dir, "clips")
@@ -91,7 +93,25 @@ class VideoAgent(BaseAgent):
                 logger.warning("video.no_clips_for_scene", scene=i)
                 continue
 
-            # Score and pick best clip
+            # AI image scenes: use local_path directly (already downloaded by media agent)
+            if scene.get("media_type") == "ai_image":
+                local_path = clips[0].get("local_path")
+                if local_path and os.path.exists(local_path):
+                    downloaded.append({
+                        "path": local_path,
+                        "type": "image",
+                        "scene_number": scene.get("scene_number", i),
+                        "duration_needed": scene.get("duration_needed", 10),
+                        "source": clips[0].get("source", "ideogram"),
+                        "effect": scene.get("effect", "slow_zoom_in"),
+                        "narration_text": scene.get("narration_text", ""),
+                    })
+                    logger.info("video.ai_image_ready", scene=i)
+                else:
+                    logger.warning("video.ai_image_missing", scene=i, path=local_path)
+                continue
+
+            # Stock video scenes: download best clip
             best_clip = self._pick_best_clip(clips, scene.get("duration_needed", 10))
             url = best_clip.get("url")
             if not url:
@@ -102,6 +122,7 @@ class VideoAgent(BaseAgent):
                 download_clip(url, clip_path)
                 downloaded.append({
                     "path": clip_path,
+                    "type": "video",
                     "scene_number": scene.get("scene_number", i),
                     "duration_needed": scene.get("duration_needed", 10),
                     "source": best_clip.get("source"),
@@ -147,9 +168,11 @@ class VideoAgent(BaseAgent):
         return scored[0][1]
 
     def _prepare_clips(self, downloaded_clips: list, total_audio_duration: float,
-                       video_dir: str) -> list:
-        """Normalize clips: scale to 1080p, color grade, trim to scene duration."""
-        from app.integrations.ffmpeg_client import normalize_clip
+                       video_dir: str, zoom: bool = True) -> list:
+        """Normalize clips: scale to 1080p, color grade, trim to scene duration.
+        AI image clips get Ken Burns zoompan effect with per-scene effects.
+        Story mode uses narration-anchor timing; hybrid uses proportional scaling."""
+        from app.integrations.ffmpeg_client import normalize_clip, image_to_video
 
         prepared = []
         prep_dir = os.path.join(video_dir, "prepared")
@@ -159,31 +182,107 @@ class VideoAgent(BaseAgent):
         if num_clips == 0:
             return []
 
-        # Distribute audio duration across clips proportionally
-        total_needed = sum(c.get("duration_needed", 10) for c in downloaded_clips)
+        # Check if narration anchors are available (story mode with new prompt)
+        has_anchors = all(c.get("narration_text") for c in downloaded_clips)
 
-        for i, clip in enumerate(downloaded_clips):
-            needed = clip.get("duration_needed", 10)
-            target_duration = (needed / total_needed) * total_audio_duration \
-                if total_needed > 0 else total_audio_duration / num_clips
+        if has_anchors:
+            clips_with_duration = self._compute_anchor_timings(
+                downloaded_clips, total_audio_duration)
+        else:
+            clips_with_duration = self._compute_proportional_timings(
+                downloaded_clips, total_audio_duration, zoom)
 
-            # Clamp: min 2s, max 15s per clip (avoids boring long holds)
-            target_duration = max(2.0, min(15.0, target_duration))
-
+        for i, clip in enumerate(clips_with_duration):
+            target_duration = clip.get("target_duration", 10)
             input_path = clip["path"]
             output_path = os.path.join(prep_dir, f"prep_{i:03d}.mp4")
 
             try:
-                normalize_clip(
-                    input_path, output_path,
-                    target_duration=target_duration,
-                    color_grade=True,
-                )
+                if clip.get("type") == "image":
+                    # AI image → video with Ken Burns effect
+                    effect = clip.get("effect", "slow_zoom_in")
+                    image_to_video(
+                        input_path, output_path,
+                        duration=target_duration,
+                        zoom=zoom,
+                        effect=effect,
+                    )
+                else:
+                    # Stock video → normalize (scale, color grade, trim)
+                    normalize_clip(
+                        input_path, output_path,
+                        target_duration=target_duration,
+                        color_grade=True,
+                    )
                 prepared.append(output_path)
             except Exception as e:
                 logger.warning("video.prepare_error", clip=i, error=str(e))
 
         return prepared
+
+    def _compute_anchor_timings(self, clips: list, total_audio_duration: float) -> list:
+        """Compute per-clip durations by mapping narration_text positions to audio time.
+        Character count maps linearly to TTS speaking time (roughly constant chars/second)."""
+        # Build full script by concatenating all narration_text in order
+        full_text = ""
+        clip_text_ranges = []
+        for clip in clips:
+            text = clip.get("narration_text", "")
+            start_char = len(full_text)
+            full_text += text + " "
+            end_char = len(full_text)
+            clip_text_ranges.append((start_char, end_char))
+
+        total_chars = len(full_text)
+        if total_chars == 0:
+            # Fallback: equal distribution
+            dur = total_audio_duration / len(clips)
+            return [{**c, "target_duration": max(3.0, dur)} for c in clips]
+
+        crossfade_duration = 0.5
+        crossfade_loss = (len(clips) - 1) * crossfade_duration
+        effective_duration = total_audio_duration + crossfade_loss
+
+        result = []
+        for i, clip in enumerate(clips):
+            start_char, end_char = clip_text_ranges[i]
+            # Map character position to time position (linear approximation)
+            start_time = (start_char / total_chars) * effective_duration
+            end_time = (end_char / total_chars) * effective_duration
+            target_duration = max(3.0, min(18.0, end_time - start_time))
+            result.append({**clip, "target_duration": target_duration})
+
+        return result
+
+    def _compute_proportional_timings(self, clips: list,
+                                       total_audio_duration: float,
+                                       zoom: bool = True) -> list:
+        """Original proportional scaling for hybrid mode (unchanged behavior)."""
+        num_clips = len(clips)
+        crossfade_duration = 0.5
+        crossfade_loss = (num_clips - 1) * crossfade_duration
+        effective_duration = total_audio_duration + crossfade_loss
+        total_needed = sum(c.get("duration_needed", 10) for c in clips)
+
+        result = []
+        for clip in clips:
+            needed = clip.get("duration_needed", 10)
+
+            if zoom:
+                # Hybrid mode: proportional to audio, clamp images to 10s
+                target_duration = (needed / total_needed) * total_audio_duration \
+                    if total_needed > 0 else total_audio_duration / num_clips
+                max_dur = 10.0 if clip.get("type") == "image" else 30.0
+                target_duration = max(2.0, min(max_dur, target_duration))
+            else:
+                # Proportional to effective duration (compensate crossfades)
+                target_duration = (needed / total_needed) * effective_duration \
+                    if total_needed > 0 else effective_duration / num_clips
+                target_duration = max(2.0, target_duration)
+
+            result.append({**clip, "target_duration": target_duration})
+
+        return result
 
     def _stitch_with_transitions(self, clip_paths: list, video_dir: str) -> str:
         """Stitch clips with crossfade transitions."""

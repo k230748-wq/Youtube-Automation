@@ -10,7 +10,10 @@ _client = None
 def _get_client() -> anthropic.Anthropic:
     global _client
     if _client is None:
-        _client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+        _client = anthropic.Anthropic(
+            api_key=settings.ANTHROPIC_API_KEY,
+            timeout=1800.0,
+        )
     return _client
 
 
@@ -19,7 +22,7 @@ def call_anthropic(
     system_prompt: str = None,
     model: str = "claude-sonnet-4-5-20250929",
     json_mode: bool = False,
-    max_tokens: int = 8192,
+    max_tokens: int = 16384,
     temperature: float = 0.7,
 ) -> str | dict:
     """Call Anthropic Claude API."""
@@ -45,8 +48,16 @@ def call_anthropic(
             # Try extracting from code blocks
             if "```json" in content:
                 start = content.index("```json") + 7
-                end = content.index("```", start)
+                try:
+                    end = content.index("```", start)
+                except ValueError:
+                    end = len(content)
                 return json.loads(content[start:end].strip())
+            # Try finding raw JSON object
+            first_brace = content.find("{")
+            last_brace = content.rfind("}")
+            if first_brace != -1 and last_brace > first_brace:
+                return json.loads(content[first_brace:last_brace + 1])
             return content
 
     return content

@@ -6,6 +6,9 @@ services:
       - "5002:5000"
     env_file:
       - .env
+    environment:
+      - DATABASE_URL=postgresql://ytauto:${POSTGRES_PASSWORD:-ytauto_dev}@db:5432/ytauto
+      - REDIS_URL=redis://redis:6379/0
     depends_on:
       db:
         condition: service_healthy
@@ -19,6 +22,8 @@ services:
     command: celery -A worker.celery_app worker --loglevel=info --concurrency=4
     environment:
       - PYTHONPATH=/app
+      - DATABASE_URL=postgresql://ytauto:${POSTGRES_PASSWORD:-ytauto_dev}@db:5432/ytauto
+      - REDIS_URL=redis://redis:6379/0
     env_file:
       - .env
     depends_on:
@@ -34,6 +39,7 @@ services:
     command: celery -A worker.celery_app beat --loglevel=info
     environment:
       - PYTHONPATH=/app
+      - REDIS_URL=redis://redis:6379/0
     env_file:
       - .env
     depends_on:

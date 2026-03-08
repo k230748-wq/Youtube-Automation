@@ -15,24 +15,26 @@ class IdeasAgent(BaseAgent):
         niche = input_data.get("niche", "")
         channel_id = input_data.get("channel_id")
         config = input_data.get("pipeline_config", {})
+        mode = config.get("mode", "hybrid")
+        topic = input_data.get("topic", "")
 
-        logger.info("ideas.start", niche=niche, channel_id=channel_id)
+        logger.info("ideas.start", niche=niche, channel_id=channel_id, mode=mode)
 
-        # Step 1: Get Google Trends data via SerpAPI
-        trends_data = self._get_trends(niche)
-
-        # Step 2: Get YouTube trending/search data
-        youtube_data = self._get_youtube_data(niche)
-
-        # Step 3: Use LLM to analyze trends and generate ranked ideas
-        ideas = self._generate_ideas(niche, trends_data, youtube_data, learning_context, channel_id)
+        if mode == "story" and topic:
+            # Story mode: generate narrative story ideas from user's topic
+            ideas = self._generate_story_ideas(topic, channel_id)
+        else:
+            # Hybrid/default: trend-based educational ideas
+            trends_data = self._get_trends(niche)
+            youtube_data = self._get_youtube_data(niche)
+            ideas = self._generate_ideas(niche, trends_data, youtube_data, learning_context, channel_id)
 
         logger.info("ideas.complete", count=len(ideas))
 
         return {
             "ideas": ideas,
-            "trends_data_summary": trends_data.get("summary", ""),
-            "youtube_data_summary": youtube_data.get("summary", ""),
+            "trends_data_summary": "",
+            "youtube_data_summary": "",
             "niche": niche,
             "channel_id": channel_id,
         }
@@ -120,6 +122,27 @@ class IdeasAgent(BaseAgent):
         # Store ideas in the database
         self._save_ideas(ideas, niche, input_data_channel_id=channel_id)
 
+        return ideas
+
+    def _generate_story_ideas(self, topic: str, channel_id: str = None) -> list:
+        """Generate emotional narrative story ideas from the user's topic."""
+        prompt = self.get_prompt("generate_story_ideas", topic=topic)
+
+        result = self.call_llm("anthropic", prompt, json_mode=True)
+        parsed = self.parse_json_response(result) if isinstance(result, str) else result
+
+        ideas = parsed.get("ideas", [])
+
+        # Ensure story-appropriate lengths
+        for idea in ideas:
+            try:
+                idea["estimated_length"] = max(8, min(12, int(idea.get("estimated_length", 10))))
+                idea["score"] = int(idea.get("score", 80))
+            except (ValueError, TypeError):
+                idea["estimated_length"] = 10
+                idea["score"] = 80
+
+        self._save_ideas(ideas, "story", input_data_channel_id=channel_id)
         return ideas
 
     def _save_ideas(self, ideas: list, niche: str, input_data_channel_id: str = None):
