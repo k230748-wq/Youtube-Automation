@@ -282,7 +282,7 @@ class MediaAgent(BaseAgent):
             style_description=style_description,
         )
 
-        result = self.call_llm("anthropic", prompt, json_mode=True)
+        result = self.call_llm("anthropic", prompt, json_mode=True, max_tokens=32768)
         parsed = self.parse_json_response(result) if isinstance(result, str) else result
 
         scenes = parsed.get("scenes", [])
