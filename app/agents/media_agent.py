@@ -157,7 +157,7 @@ class MediaAgent(BaseAgent):
         """Generate a thumbnail image using Ideogram."""
         # First, get a thumbnail prompt from LLM
         prompt = self.get_prompt("thumbnail_prompt", title=title, niche=niche)
-        result = self.call_llm("openai", prompt, json_mode=True)
+        result = self.call_llm("anthropic", prompt, json_mode=True)
         parsed = self.parse_json_response(result) if isinstance(result, str) else result
 
         image_prompt = parsed.get("prompt", f"Eye-catching YouTube thumbnail for {title}")

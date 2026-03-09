@@ -166,7 +166,7 @@ class ScriptAgent(BaseAgent):
         if self.language != "en":
             prompt += f"\n\nIMPORTANT: Write ALL titles in {LANGUAGE_NAMES.get(self.language, self.language)}."
 
-        result = self.call_llm("openai", prompt, json_mode=True)
+        result = self.call_llm("anthropic", prompt, json_mode=True)
         parsed = self.parse_json_response(result) if isinstance(result, str) else result
 
         titles = parsed.get("titles", [])
@@ -182,7 +182,7 @@ class ScriptAgent(BaseAgent):
         if self.language != "en":
             prompt += f"\n\nIMPORTANT: Write ALL titles in {LANGUAGE_NAMES.get(self.language, self.language)}."
 
-        result = self.call_llm("openai", prompt, json_mode=True)
+        result = self.call_llm("anthropic", prompt, json_mode=True)
         parsed = self.parse_json_response(result) if isinstance(result, str) else result
 
         titles = parsed.get("titles", [])
@@ -209,7 +209,7 @@ class ScriptAgent(BaseAgent):
         if self.language != "en":
             prompt += f"\n\nIMPORTANT: Write the description in {LANGUAGE_NAMES.get(self.language, self.language)}."
 
-        result = self.call_llm("openai", prompt, json_mode=True)
+        result = self.call_llm("anthropic", prompt, json_mode=True)
         parsed = self.parse_json_response(result) if isinstance(result, str) else result
 
         return {
