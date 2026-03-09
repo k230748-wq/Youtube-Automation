@@ -107,7 +107,7 @@ class QAAgent(BaseAgent):
                 niche=niche,
             )
 
-            result = self.call_llm("anthropic", prompt, json_mode=True)
+            result = self.call_llm("openai", prompt, json_mode=True)
             parsed = self.parse_json_response(result) if isinstance(result, str) else result
 
             return parsed
