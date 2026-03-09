@@ -40,7 +40,7 @@ class Settings:
     ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "")
 
     # Assets
-    ASSETS_DIR = os.getenv("ASSETS_DIR", "./assets")
+    ASSETS_DIR = os.getenv("ASSETS_DIR", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets"))
 
     # Pipeline defaults
     MAX_RETRIES = 3

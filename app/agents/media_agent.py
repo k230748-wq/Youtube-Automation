@@ -290,6 +290,11 @@ class MediaAgent(BaseAgent):
         for s in scenes:
             s["media_type"] = "ai_image"
 
+        # Cap scenes at 45 max — LLM sometimes overshoots
+        if len(scenes) > 45:
+            logger.warning("media.scenes_capped", original=len(scenes), capped=45)
+            scenes = scenes[:45]
+
         logger.info("media.story_scenes_extracted", count=len(scenes), style=style_key)
         return scenes
 
