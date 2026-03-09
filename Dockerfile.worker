@@ -12,7 +12,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-RUN mkdir -p /app/assets
+RUN mkdir -p /app/assets && chown -R nobody:nogroup /app/assets
 
 ENV PYTHONPATH=/app
 
