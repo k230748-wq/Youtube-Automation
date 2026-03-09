@@ -16,6 +16,7 @@ redis==5.2.1
 # AI / LLM
 openai>=1.59.2
 anthropic>=0.42.0
+edge-tts>=6.1.9
 
 # API Integrations
 httpx>=0.28.1
