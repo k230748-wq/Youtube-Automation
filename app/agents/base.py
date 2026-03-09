@@ -1,6 +1,7 @@
 """Base agent class — shared logic for all pipeline agents."""
 
 import json
+import re
 from abc import ABC, abstractmethod
 
 import structlog
@@ -131,7 +132,7 @@ class BaseAgent(ABC):
             raise ValueError(f"Unknown LLM provider: {provider}")
 
     def parse_json_response(self, response: str) -> dict:
-        """Safely parse a JSON response from an LLM."""
+        """Safely parse a JSON response from an LLM with repair for common issues."""
         if isinstance(response, (dict, list)):
             return response
 
@@ -142,30 +143,62 @@ class BaseAgent(ABC):
             pass
 
         # Try extracting JSON from markdown code blocks
-        if "```json" in response:
-            start = response.index("```json") + 7
-            # Handle missing closing ``` by using end of string
-            try:
-                end = response.index("```", start)
-            except ValueError:
-                end = len(response)
-            return json.loads(response[start:end].strip())
-
-        if "```" in response:
-            start = response.index("```") + 3
-            try:
-                end = response.index("```", start)
-            except ValueError:
-                end = len(response)
-            return json.loads(response[start:end].strip())
+        for marker in ("```json", "```"):
+            if marker in response:
+                start = response.index(marker) + len(marker)
+                try:
+                    end = response.index("```", start)
+                except ValueError:
+                    end = len(response)
+                extracted = response[start:end].strip()
+                try:
+                    return json.loads(extracted)
+                except json.JSONDecodeError:
+                    try:
+                        return json.loads(self._repair_json(extracted))
+                    except json.JSONDecodeError:
+                        pass
+                break
 
         # Try finding first { to last } as JSON object
         first_brace = response.find("{")
         last_brace = response.rfind("}")
         if first_brace != -1 and last_brace > first_brace:
+            raw = response[first_brace:last_brace + 1]
             try:
-                return json.loads(response[first_brace:last_brace + 1])
+                return json.loads(raw)
             except json.JSONDecodeError:
-                pass
+                try:
+                    return json.loads(self._repair_json(raw))
+                except json.JSONDecodeError:
+                    pass
+
+        # Last resort: repair entire response
+        try:
+            return json.loads(self._repair_json(response))
+        except (json.JSONDecodeError, ValueError):
+            pass
 
         raise ValueError(f"Could not parse JSON from response: {response[:200]}")
+
+    @staticmethod
+    def _repair_json(text: str) -> str:
+        """Repair common JSON issues from LLM output."""
+        # Remove trailing commas before } or ]
+        text = re.sub(r',\s*([}\]])', r'\1', text)
+        # Close truncated strings
+        open_braces = text.count('{') - text.count('}')
+        open_brackets = text.count('[') - text.count(']')
+        if open_braces > 0 or open_brackets > 0:
+            stripped = text.rstrip()
+            if stripped and stripped[-1] not in '"}],':
+                text = text.rstrip()
+                if text[-1] == '\\':
+                    text = text[:-1]
+                text += '"'
+        # Close remaining open brackets/braces
+        open_braces = text.count('{') - text.count('}')
+        open_brackets = text.count('[') - text.count(']')
+        text += ']' * max(0, open_brackets)
+        text += '}' * max(0, open_braces)
+        return text
