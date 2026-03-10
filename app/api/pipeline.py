@@ -139,6 +139,25 @@ def get_pipeline_logs(pipeline_id):
     })
 
 
+@pipeline_bp.route("/<pipeline_id>/sync", methods=["POST"])
+def sync_pipeline_files(pipeline_id):
+    """Manually sync completed pipeline files to web service for download."""
+    pipeline = PipelineRun.query.get(pipeline_id)
+    if not pipeline:
+        return jsonify({"error": "Pipeline not found"}), 404
+
+    if pipeline.status != "completed":
+        return jsonify({"error": "Pipeline must be completed to sync files"}), 400
+
+    from worker.tasks import sync_files
+    task = sync_files.delay(pipeline_id)
+    return jsonify({
+        "message": "File sync started",
+        "pipeline_id": pipeline_id,
+        "task_id": task.id,
+    })
+
+
 @pipeline_bp.route("/<pipeline_id>", methods=["DELETE"])
 def delete_pipeline(pipeline_id):
     """Delete a pipeline and its associated video/assets."""
