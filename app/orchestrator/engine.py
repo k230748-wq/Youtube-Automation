@@ -85,6 +85,10 @@ class PipelineOrchestrator:
             phase_result.output_data = output_data
             phase_result.duration_seconds = round(duration, 2)
 
+            # After Phase 2 (script), link the Video record to this pipeline
+            if phase_number == 2 and output_data.get("video_id"):
+                self._link_video_to_pipeline(output_data["video_id"])
+
             logger.info("phase.completed", pipeline_id=self.pipeline_run_id, phase=phase_number, duration=duration, trace_id=self.trace_id)
 
             if requires_approval(phase_number, pipeline.config):
@@ -196,6 +200,18 @@ class PipelineOrchestrator:
             input_data[key] = result.output_data
 
         return input_data
+
+    def _link_video_to_pipeline(self, video_id: str):
+        """Link a Video record to this pipeline run."""
+        try:
+            from app.models.video import Video
+            video = Video.query.get(video_id)
+            if video:
+                video.pipeline_run_id = self.pipeline_run_id
+                db.session.commit()
+                logger.info("video.linked", video_id=video_id, pipeline_id=self.pipeline_run_id)
+        except Exception as e:
+            logger.warning("video.link_failed", video_id=video_id, error=str(e))
 
 
 def create_pipeline(channel_id: str = None, niche: str = "", topic: str = None, config: dict = None) -> PipelineRun:

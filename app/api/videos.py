@@ -90,6 +90,19 @@ def download_video_file(video_id, file_type):
 
     # Try /app/downloads (web volume on Railway)
     pipeline_id = video.pipeline_run_id
+
+    # Fallback: look up pipeline from Phase 2 output if video was created before fix
+    if not pipeline_id:
+        from app.models.phase_result import PhaseResult
+        phase_2 = PhaseResult.query.filter(
+            PhaseResult.phase_number == 2,
+            PhaseResult.output_data.isnot(None),
+        ).all()
+        for p2 in phase_2:
+            if p2.output_data.get("video_id") == video_id:
+                pipeline_id = p2.pipeline_run_id
+                break
+
     if pipeline_id:
         downloads_path = f"/app/downloads/{pipeline_id}/{downloads_name}"
         if os.path.exists(downloads_path):
