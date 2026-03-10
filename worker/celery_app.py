@@ -19,8 +19,8 @@ celery.conf.update(
     task_track_started=True,
     task_acks_late=True,
     worker_prefetch_multiplier=1,
-    task_soft_time_limit=3600,
-    task_time_limit=4200,
+    task_soft_time_limit=7200,  # 2 hours for long video pipelines
+    task_time_limit=7800,  # 2h 10m hard limit
     beat_schedule={
         "discover-ideas-daily": {
             "task": "worker.scheduled.discover_ideas_all_channels",
