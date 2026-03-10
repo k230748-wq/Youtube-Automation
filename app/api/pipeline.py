@@ -139,6 +139,15 @@ def get_pipeline_logs(pipeline_id):
     })
 
 
+@pipeline_bp.route("/diagnostics/assets", methods=["GET"])
+def list_worker_assets():
+    """Diagnostic: list contents of /app/assets on worker."""
+    pipeline_id = request.args.get("pipeline_id")
+    from worker.tasks import list_assets
+    task = list_assets.delay(pipeline_id)
+    return jsonify({"task_id": task.id, "pipeline_id": pipeline_id})
+
+
 @pipeline_bp.route("/<pipeline_id>/sync", methods=["POST"])
 def sync_pipeline_files(pipeline_id):
     """Manually sync completed pipeline files to web service for download."""

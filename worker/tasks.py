@@ -54,6 +54,49 @@ def resume_after_approval(self, pipeline_run_id: str, phase_number: int):
             raise
 
 
+@celery.task(bind=True, name="worker.tasks.list_assets")
+def list_assets(self, pipeline_run_id: str = None):
+    """Diagnostic task to list contents of /app/assets."""
+    import os
+    import glob
+
+    assets_dir = "/app/assets"
+    result = {
+        "assets_dir_exists": os.path.exists(assets_dir),
+        "assets_dir_is_mount": os.path.ismount(assets_dir),
+    }
+
+    if os.path.exists(assets_dir):
+        # List top-level contents
+        try:
+            contents = os.listdir(assets_dir)
+            result["top_level_contents"] = contents[:20]  # Limit to 20
+            result["total_items"] = len(contents)
+        except Exception as e:
+            result["list_error"] = str(e)
+
+        # If pipeline_id provided, check that specific directory
+        if pipeline_run_id:
+            pipeline_dir = os.path.join(assets_dir, pipeline_run_id)
+            result["pipeline_dir_exists"] = os.path.exists(pipeline_dir)
+            if os.path.exists(pipeline_dir):
+                try:
+                    files = []
+                    for f in os.listdir(pipeline_dir):
+                        fpath = os.path.join(pipeline_dir, f)
+                        files.append({
+                            "name": f,
+                            "size": os.path.getsize(fpath) if os.path.isfile(fpath) else 0,
+                            "is_dir": os.path.isdir(fpath),
+                        })
+                    result["pipeline_files"] = files
+                except Exception as e:
+                    result["pipeline_error"] = str(e)
+
+    logger.info("list_assets.complete", result=result)
+    return result
+
+
 @celery.task(bind=True, name="worker.tasks.sync_files")
 def sync_files(self, pipeline_run_id: str):
     """Manually sync files from worker volume to web service."""
