@@ -13,8 +13,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-RUN mkdir -p /app/assets && chown -R nobody:nogroup /app/assets
+RUN mkdir -p /app/assets
 
 ENV PYTHONPATH=/app
 
-CMD ["celery", "-A", "worker.celery_app:celery", "worker", "--loglevel=info", "--concurrency=2", "--uid=nobody"]
+# Run as root to have write access to Railway volume at /app/assets
+CMD ["celery", "-A", "worker.celery_app:celery", "worker", "--loglevel=info", "--concurrency=2"]
