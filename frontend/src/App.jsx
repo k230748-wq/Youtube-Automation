@@ -81,6 +81,7 @@ const api = {
   startPipeline:   (id)         => http.post(`/pipelines/${id}/start`).then(r => r.data),
   stopPipeline:    (id)         => http.post(`/pipelines/${id}/stop`).then(r => r.data),
   restartFrom:     (id, phase)  => http.post(`/pipelines/${id}/restart_from/${phase}`).then(r => r.data),
+  deletePipeline:  (id)         => http.delete(`/pipelines/${id}`).then(r => r.data),
 
   // Videos
   listVideos:      (params)     => http.get('/videos/', { params }).then(r => r.data),
@@ -276,6 +277,15 @@ const DashboardPage = ({ navigate, channels }) => {
     setCreating(false);
   };
 
+  const handleDelete = async (e, pipelineId, topic) => {
+    e.stopPropagation();
+    if (!confirm(`Delete pipeline "${topic || 'Untitled'}" and all associated files?`)) return;
+    try {
+      await api.deletePipeline(pipelineId);
+      setPipelines(prev => prev.filter(p => p.id !== pipelineId));
+    } catch (err) { console.error('Delete pipeline error:', err); }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -306,6 +316,7 @@ const DashboardPage = ({ navigate, channels }) => {
                   <th className="px-6 py-3">Phase</th>
                   <th className="px-6 py-3">Status</th>
                   <th className="px-6 py-3">Created</th>
+                  <th className="px-6 py-3">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -319,6 +330,9 @@ const DashboardPage = ({ navigate, channels }) => {
                     <td className="px-6 py-4 text-sm text-slate-300">{p.current_phase ? PHASES[p.current_phase - 1] || `Phase ${p.current_phase}` : '—'}</td>
                     <td className="px-6 py-4"><StatusBadge status={p.status} /></td>
                     <td className="px-6 py-4 text-sm text-slate-400">{formatDate(p.created_at)}</td>
+                    <td className="px-6 py-4">
+                      <Button size="sm" variant="ghost" icon={Trash2} onClick={(e) => handleDelete(e, p.id, p.topic)} className="text-red-400 hover:text-red-300" />
+                    </td>
                   </tr>
                 ))}
               </tbody>

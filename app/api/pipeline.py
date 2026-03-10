@@ -137,3 +137,44 @@ def get_pipeline_logs(pipeline_id):
         "pipeline_id": pipeline_id,
         "logs": [l.to_dict() for l in logs],
     })
+
+
+@pipeline_bp.route("/<pipeline_id>", methods=["DELETE"])
+def delete_pipeline(pipeline_id):
+    """Delete a pipeline and its associated video/assets."""
+    import os
+    import shutil
+    from app.models.video import Video
+    from app.models.asset import Asset
+    from config.settings import settings
+
+    pipeline = PipelineRun.query.get(pipeline_id)
+    if not pipeline:
+        return jsonify({"error": "Pipeline not found"}), 404
+
+    # Find associated video from Phase 2 output
+    video_id = None
+    phase_2 = PhaseResult.query.filter_by(pipeline_run_id=pipeline_id, phase_number=2).first()
+    if phase_2 and phase_2.output_data:
+        video_id = phase_2.output_data.get("video_id")
+
+    # Delete associated video and its assets
+    if video_id:
+        Asset.query.filter_by(video_id=video_id).delete()
+        Video.query.filter_by(id=video_id).delete()
+
+    # Delete phase results, approvals, and learning logs
+    PhaseResult.query.filter_by(pipeline_run_id=pipeline_id).delete()
+    Approval.query.filter_by(pipeline_run_id=pipeline_id).delete()
+    LearningLog.query.filter_by(pipeline_run_id=pipeline_id).delete()
+
+    # Delete asset files from disk
+    asset_dir = os.path.join(settings.ASSETS_DIR, pipeline_id)
+    if os.path.exists(asset_dir):
+        shutil.rmtree(asset_dir, ignore_errors=True)
+
+    # Delete the pipeline
+    db.session.delete(pipeline)
+    db.session.commit()
+
+    return jsonify({"message": "Pipeline deleted", "pipeline_id": pipeline_id})
