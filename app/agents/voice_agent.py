@@ -123,8 +123,22 @@ class VoiceAgent(BaseAgent):
             communicate = edge_tts.Communicate(text, edge_voice)
             await communicate.save(chunk_path)
 
-        asyncio.run(_generate())
-        logger.info("voice.chunk_done", chunk=1, total=1)
+        # Ensure directory exists
+        os.makedirs(video_dir, exist_ok=True)
+
+        try:
+            asyncio.run(_generate())
+        except Exception as e:
+            logger.error("voice.edge_tts_failed", error=str(e))
+            raise RuntimeError(f"Edge TTS failed: {e}")
+
+        # Verify file was created
+        if not os.path.exists(chunk_path):
+            logger.error("voice.chunk_not_created", path=chunk_path)
+            raise RuntimeError(f"Edge TTS did not create audio file at {chunk_path}")
+
+        file_size = os.path.getsize(chunk_path)
+        logger.info("voice.chunk_done", chunk=1, total=1, size_bytes=file_size)
 
         # Single chunk — just rename
         if len(chunk_paths) == 1:
