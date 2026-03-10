@@ -59,27 +59,47 @@ def update_video(video_id):
 
 @videos_bp.route("/<video_id>/download/<file_type>", methods=["GET"])
 def download_video_file(video_id, file_type):
-    """Download a video file. file_type: video | video_no_subs | thumbnail | audio | subtitle"""
+    """Download a video file. file_type: video | video_no_subs | thumbnail | audio | subtitle
+
+    Checks both the original path and /app/downloads (web volume) for the file.
+    """
     video = Video.query.get(video_id)
     if not video:
         return jsonify({"error": "Video not found"}), 404
 
+    # Map file type to video model path and downloads folder filename
     path_map = {
-        "video": video.final_video_path,
-        "thumbnail": video.thumbnail_path,
-        "audio": video.audio_path,
-        "subtitle": video.subtitle_path,
+        "video": (video.final_video_path, "video.mp4"),
+        "thumbnail": (video.thumbnail_path, "thumbnail.png"),
+        "audio": (video.audio_path, "audio.mp3"),
+        "subtitle": (video.subtitle_path, "subtitle.srt"),
     }
 
-    file_path = path_map.get(file_type)
-    if not file_path or not os.path.exists(file_path):
-        return jsonify({"error": f"File not found for type '{file_type}'"}), 404
+    if file_type not in path_map:
+        return jsonify({"error": f"Invalid file type '{file_type}'"}), 400
 
-    return send_file(
-        os.path.abspath(file_path),
-        as_attachment=True,
-        download_name=os.path.basename(file_path),
-    )
+    original_path, downloads_name = path_map[file_type]
+
+    # Try original path first (for local dev)
+    if original_path and os.path.exists(original_path):
+        return send_file(
+            os.path.abspath(original_path),
+            as_attachment=True,
+            download_name=os.path.basename(original_path),
+        )
+
+    # Try /app/downloads (web volume on Railway)
+    pipeline_id = video.pipeline_run_id
+    if pipeline_id:
+        downloads_path = f"/app/downloads/{pipeline_id}/{downloads_name}"
+        if os.path.exists(downloads_path):
+            return send_file(
+                downloads_path,
+                as_attachment=True,
+                download_name=downloads_name,
+            )
+
+    return jsonify({"error": f"File not found for type '{file_type}'"}), 404
 
 
 @videos_bp.route("/<video_id>/upload-voice", methods=["POST"])

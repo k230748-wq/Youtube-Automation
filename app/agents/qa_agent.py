@@ -64,6 +64,9 @@ class QAAgent(BaseAgent):
             "audio_file": audio_path,
         }
 
+        # Step 6: Sync files to web service for downloads (Railway deployment)
+        self._sync_to_web_service(pipeline_run_id, upload_package)
+
         result = {
             "video_id": video_id,
             "upload_package": upload_package,
@@ -155,3 +158,47 @@ class QAAgent(BaseAgent):
                 logger.info("qa.video_finalized", video_id=video_id)
         except Exception as e:
             logger.warning("qa.finalize_failed", error=str(e))
+
+    def _sync_to_web_service(self, pipeline_id: str, upload_package: dict):
+        """Upload final files to web service volume for download access.
+
+        In Railway deployment, worker and web have separate filesystems.
+        This syncs files from worker volume to web volume via internal HTTP.
+        """
+        import httpx
+
+        # Railway internal networking: web.railway.internal
+        web_url = os.environ.get("WEB_INTERNAL_URL", "http://web.railway.internal:5000")
+        upload_endpoint = f"{web_url}/api/internal/upload/{pipeline_id}"
+
+        files_to_sync = [
+            ("video", upload_package.get("video_file")),
+            ("audio", upload_package.get("audio_file")),
+            ("subtitle", upload_package.get("subtitle_file")),
+            ("thumbnail", upload_package.get("thumbnail_file")),
+        ]
+
+        synced = 0
+        for file_type, file_path in files_to_sync:
+            if not file_path or not os.path.exists(file_path):
+                continue
+
+            try:
+                with open(file_path, "rb") as f:
+                    response = httpx.post(
+                        f"{upload_endpoint}/{file_type}",
+                        files={"file": (os.path.basename(file_path), f)},
+                        timeout=300,  # 5 min for large videos
+                    )
+                    if response.status_code == 200:
+                        synced += 1
+                        logger.info("qa.sync_file_ok", file_type=file_type,
+                                    size=os.path.getsize(file_path))
+                    else:
+                        logger.warning("qa.sync_file_failed", file_type=file_type,
+                                       status=response.status_code)
+            except Exception as e:
+                # Don't fail the pipeline if sync fails - files still exist on worker volume
+                logger.warning("qa.sync_error", file_type=file_type, error=str(e))
+
+        logger.info("qa.sync_complete", pipeline_id=pipeline_id, files_synced=synced)
