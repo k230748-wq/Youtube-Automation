@@ -41,16 +41,23 @@ class MediaAgent(BaseAgent):
 
         mode = config.get("mode", "hybrid")
         style_key = config.get("style", "cinematic")
+        max_scenes = config.get("max_scenes")  # For testing: limit number of scenes
 
-        logger.info("media.start", title=title, sections=len(sections), mode=mode)
+        logger.info("media.start", title=title, sections=len(sections), mode=mode, max_scenes=max_scenes)
 
         if mode == "story":
             # Story mode: all AI-generated images, no stock video
             scenes = self._extract_scenes_story(sections, style_key)
+            if max_scenes and len(scenes) > max_scenes:
+                logger.info("media.scenes_limited", original=len(scenes), limited=max_scenes)
+                scenes = scenes[:max_scenes]
             scene_clips = self._generate_story_images(scenes, pipeline_run_id, video_id, style_key)
         else:
             # Hybrid mode: mix of stock video + AI images (existing logic)
             scenes = self._extract_scenes(sections)
+            if max_scenes and len(scenes) > max_scenes:
+                logger.info("media.scenes_limited", original=len(scenes), limited=max_scenes)
+                scenes = scenes[:max_scenes]
 
             stock_scenes = [s for s in scenes if s.get("media_type") != "ai_image"]
             ai_scenes = [s for s in scenes if s.get("media_type") == "ai_image"]
