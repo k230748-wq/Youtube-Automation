@@ -368,24 +368,25 @@ def image_to_video(image_path: str, output_path: str,
     if zoom and effect != "static":
         total_frames = int(duration * fps)
 
+        # Subtle Ken Burns - reduced intensity (half of original values)
         if effect == "slow_zoom_out":
-            z_expr = f"1.06-0.06/{total_frames}*on"
+            z_expr = f"1.03-0.03/{total_frames}*on"  # 3% zoom out (was 6%)
             x_expr = "iw/2-(iw/zoom/2)"
             y_expr = "ih/2-(ih/zoom/2)"
         elif effect == "pan_left":
-            z_expr = "1.03"
+            z_expr = "1.015"  # 1.5% zoom (was 3%)
             x_expr = f"(iw-iw/zoom)*({total_frames}-on)/{total_frames}"
             y_expr = "ih/2-(ih/zoom/2)"
         elif effect == "pan_right":
-            z_expr = "1.03"
+            z_expr = "1.015"  # 1.5% zoom (was 3%)
             x_expr = f"(iw-iw/zoom)*on/{total_frames}"
             y_expr = "ih/2-(ih/zoom/2)"
         elif effect == "zoom_to_center":
-            z_expr = f"1+0.10/{total_frames}*on"
+            z_expr = f"1+0.05/{total_frames}*on"  # 5% zoom (was 10%)
             x_expr = "iw/2-(iw/zoom/2)"
             y_expr = "ih/2-(ih/zoom/2)"
         else:  # slow_zoom_in (default)
-            z_expr = f"1+0.06/{total_frames}*on"
+            z_expr = f"1+0.03/{total_frames}*on"  # 3% zoom (was 6%)
             x_expr = "iw/2-(iw/zoom/2)"
             y_expr = "ih/2-(ih/zoom/2)"
 
