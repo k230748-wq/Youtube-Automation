@@ -19,7 +19,7 @@ EDGE_TTS_VOICES = {
 
 class VoiceAgent(BaseAgent):
     agent_name = "voice_agent"
-    phase_number = 4
+    phase_number = 3
 
     def run(self, input_data: dict, learning_context: list) -> dict:
         config = input_data.get("pipeline_config", {})
