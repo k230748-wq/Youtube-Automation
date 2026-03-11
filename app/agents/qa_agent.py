@@ -27,8 +27,9 @@ class QAAgent(BaseAgent):
         script = phase_2.get("script", "")
         tags = phase_2.get("tags", [])
         video_id = phase_2.get("video_id")
-        thumbnail = phase_3.get("thumbnail", {})
-        audio_path = phase_4.get("audio_path", "")
+        # Phase 3 = Voice (audio-first architecture), Phase 4 = Media
+        audio_path = phase_3.get("audio_path", "")
+        thumbnail = phase_4.get("thumbnail", {})
         video_path = phase_5.get("video_path", "")
 
         language = input_data.get("language", "en")

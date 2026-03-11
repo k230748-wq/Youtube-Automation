@@ -10,11 +10,31 @@ visual_beat_segmentation:
     - Don't split mid-sentence
     - Balance visual pacing — avoid too many quick cuts
 
+    TIMING TECHNIQUE (IMPORTANT):
+    - Use ANTICIPATORY CUTS: start the new scene ~0.3-0.5 seconds BEFORE the narration topic changes
+    - This means: set the scene's "start" timestamp slightly before the first word of that section
+    - Example: If narration says "Then one day..." at timestamp 45.2, set scene start to 44.8
+    - This creates professional-feeling cuts where visuals lead the audio slightly
+
     CHARACTER CONSISTENCY IS CRITICAL:
     - First, identify all main characters from the script
     - Assign each character a FIXED appearance (age, hair color/style, skin tone, clothing)
     - Use the EXACT SAME character description in EVERY scene they appear
     - Never change a character's appearance mid-story
+
+    FOCUS ON MAIN CHARACTERS ONLY:
+    - Only include characters who are NAMED or ESSENTIAL to the scene
+    - Do NOT add random bystanders, crowds, or background people
+    - If the scene is "man walks through station", show ONLY the man — not crowds
+    - Keep scenes intimate and focused on the protagonist(s)
+    - Exception: Only mention other people if the narration explicitly describes them
+
+    COLLAGE/MONTAGE SCENES (use sparingly):
+    - When narration covers MANY events quickly (e.g., "years passed", "they did everything together", "memories flooded back")
+    - Mark visual_description with "4-PANEL COLLAGE:" prefix to trigger a multi-panel montage
+    - Use this for: time passing, multiple memories, growing up sequences, lists of activities
+    - Limit to 1-3 collages per video maximum — most scenes should be single images
+    - Example: "4-PANEL COLLAGE: top-left shows boy learning to ride bike, top-right shows fishing at lake, bottom-left shows birthday party, bottom-right shows graduation"
 
   user: |
     Segment this narration into visual scenes.

@@ -299,12 +299,28 @@ class VideoAgent(BaseAgent):
         return result
 
     def _use_locked_timings(self, clips: list) -> list:
-        """Use exact timestamps from audio-first segmentation."""
+        """Use exact timestamps from audio-first segmentation.
+
+        Compensates for crossfade overlap: each 0.5s crossfade consumes time
+        from the end of the previous clip, so we extend clips slightly.
+        """
+        num_clips = len(clips)
+        crossfade_duration = 0.5
+
         result = []
-        for clip in clips:
+        for i, clip in enumerate(clips):
             start = clip.get("start_time", 0)
             end = clip.get("end_time", start + 5)
-            target_duration = max(2.0, min(20.0, end - start))
+            base_duration = end - start
+
+            # Add crossfade compensation: extend clip to account for overlap
+            # Each clip (except last) loses ~0.5s to the next crossfade
+            if i < num_clips - 1:
+                target_duration = base_duration + crossfade_duration
+            else:
+                target_duration = base_duration
+
+            target_duration = max(2.0, min(20.0, target_duration))
             result.append({**clip, "target_duration": target_duration})
         return result
 
