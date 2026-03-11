@@ -42,8 +42,8 @@ PHASE_TRANSITIONS = {
 PHASE_NAMES = {
     1: "Ideas Discovery",
     2: "Script Generation",
-    3: "Media Collection",
-    4: "Voice Generation",
+    3: "Voice Generation",
+    4: "Media Collection",
     5: "Video Assembly",
     6: "QA & Package",
 }
@@ -51,8 +51,8 @@ PHASE_NAMES = {
 PHASE_AGENTS = {
     1: "ideas_agent",
     2: "script_agent",
-    3: "media_agent",
-    4: "voice_agent",
+    3: "voice_agent",
+    4: "media_agent",
     5: "video_agent",
     6: "qa_agent",
 }
