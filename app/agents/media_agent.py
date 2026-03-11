@@ -439,6 +439,8 @@ class MediaAgent(BaseAgent):
                 "duration_needed": scene.get("duration_seconds", 12),
                 "effect": scene.get("effect", "slow_zoom_in"),
                 "narration_text": scene.get("narration_text", ""),
+                "start_time": scene.get("start_time"),   # NEW
+                "end_time": scene.get("end_time"),       # NEW
             })
 
         # Second pass: handle reuse_scene references (copy image path, skip generation)
@@ -459,6 +461,8 @@ class MediaAgent(BaseAgent):
                     "duration_needed": scene.get("duration_seconds", 12),
                     "effect": scene.get("effect", "slow_zoom_in"),
                     "narration_text": scene.get("narration_text", ""),
+                    "start_time": scene.get("start_time"),   # NEW
+                    "end_time": scene.get("end_time"),       # NEW
                 })
                 logger.info("media.story_image_reused", scene=scene_num, original=original_num)
             else:
