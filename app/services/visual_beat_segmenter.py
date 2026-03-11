@@ -49,8 +49,11 @@ def segment_into_visual_beats(script: str, word_timestamps: list, style_key: str
     # Validate and fix segment timings
     segments = _validate_segments(result["segments"], word_timestamps)
 
-    logger.info("segmenter.complete", num_segments=len(segments))
-    return {"segments": segments}
+    # Extract character definitions for consistency
+    characters = result.get("characters", {})
+
+    logger.info("segmenter.complete", num_segments=len(segments), num_characters=len(characters))
+    return {"segments": segments, "characters": characters}
 
 
 def _call_llm(system: str, user: str) -> dict:
@@ -128,4 +131,4 @@ def _fallback_segmentation(script: str) -> dict:
         if (i + 1) % 2 == 0:
             scene_id += 1
 
-    return {"segments": segments}
+    return {"segments": segments, "characters": {}}

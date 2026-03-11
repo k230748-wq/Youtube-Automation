@@ -10,6 +10,12 @@ visual_beat_segmentation:
     - Don't split mid-sentence
     - Balance visual pacing — avoid too many quick cuts
 
+    CHARACTER CONSISTENCY IS CRITICAL:
+    - First, identify all main characters from the script
+    - Assign each character a FIXED appearance (age, hair color/style, skin tone, clothing)
+    - Use the EXACT SAME character description in EVERY scene they appear
+    - Never change a character's appearance mid-story
+
   user: |
     Segment this narration into visual scenes.
 
@@ -19,18 +25,31 @@ visual_beat_segmentation:
     WORD TIMESTAMPS:
     {word_timestamps}
 
-    Output JSON with segments array. Each segment needs:
-    - scene_id: integer, shared by sentences that should use same image
-    - text: the sentence/phrase for this segment
-    - start: start time in seconds (from word timestamps)
-    - end: end time in seconds
-    - visual_description: what the image should depict
-
-    Example output:
+    STEP 1: First, identify the main characters and assign FIXED appearances.
+    Example characters object:
     {
+      "protagonist": "38-year-old woman with shoulder-length auburn hair, fair skin, wearing a dark green coat",
+      "homeless_man": "55-year-old weathered man with gray stubble beard, deep wrinkles, wearing a worn navy blue jacket with astronaut patch on sleeve",
+      "child": "8-year-old boy with messy brown hair, bright curious eyes"
+    }
+
+    STEP 2: Segment the script. In EVERY visual_description, include the EXACT character description from Step 1.
+
+    Output JSON:
+    {
+      "characters": {
+        "protagonist": "exact physical description...",
+        "other_character": "exact physical description..."
+      },
       "segments": [
-        {"scene_id": 1, "text": "The rain was falling.", "start": 0.0, "end": 2.1, "visual_description": "Heavy rain on a dark street"},
-        {"scene_id": 1, "text": "I held the baby close.", "start": 2.1, "end": 4.3, "visual_description": "Heavy rain on a dark street"},
-        {"scene_id": 2, "text": "The orphanage door appeared.", "start": 4.3, "end": 6.8, "visual_description": "Old wooden door with dim light"}
+        {
+          "scene_id": 1,
+          "text": "The rain was falling.",
+          "start": 0.0,
+          "end": 2.1,
+          "visual_description": "38-year-old woman with shoulder-length auburn hair, fair skin, wearing dark green coat, walking alone on a rainy city street at night"
+        }
       ]
     }
+
+    IMPORTANT: Every visual_description MUST include the full character description (age, hair, skin, clothing) for any person in the scene. This ensures the AI generates consistent characters.
