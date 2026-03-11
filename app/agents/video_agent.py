@@ -18,20 +18,24 @@ class VideoAgent(BaseAgent):
 
         # Get data from previous phases
         phase_2 = input_data.get("phase_2_output", {})
-        phase_3 = input_data.get("phase_3_output", {})
-        phase_4 = input_data.get("phase_4_output", {})
+        phase_3 = input_data.get("phase_3_output", {})  # Now Voice (was Media)
+        phase_4 = input_data.get("phase_4_output", {})  # Now Media (was Voice)
 
         title = phase_2.get("selected_title", "")
         video_id = phase_2.get("video_id")
         sections = phase_2.get("sections", [])
-        scene_clips = phase_3.get("scene_clips", [])
-        audio_path = phase_4.get("audio_path", "")
-        audio_duration = phase_4.get("duration_seconds", 0)
+
+        # Phase 3 is now Voice
+        audio_path = phase_3.get("audio_path", "")
+        audio_duration = phase_3.get("duration_seconds", 0)
+
+        # Phase 4 is now Media
+        scene_clips = phase_4.get("scene_clips", [])
 
         if not scene_clips:
-            raise ValueError("No scene clips from Phase 3 — cannot assemble video")
+            raise ValueError("No scene clips from Phase 4 — cannot assemble video")
         if not audio_path:
-            raise ValueError("No audio from Phase 4 — cannot assemble video")
+            raise ValueError("No audio from Phase 3 — cannot assemble video")
 
         logger.info("video.start", title=title, scenes=len(scene_clips),
                      audio_duration=audio_duration)
