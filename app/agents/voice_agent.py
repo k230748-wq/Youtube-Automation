@@ -53,6 +53,9 @@ class VoiceAgent(BaseAgent):
         # Step 3: Get audio duration
         duration = self._get_audio_duration(audio_path)
 
+        # Step 4: Get word-level timestamps
+        word_timestamps = self._get_word_timestamps(audio_path, language=language)
+
         result = {
             "video_id": video_id,
             "audio_path": audio_path,
@@ -60,6 +63,8 @@ class VoiceAgent(BaseAgent):
             "duration_seconds": duration,
             "script_char_count": len(clean_script),
             "title": title,
+            "word_timestamps": word_timestamps,
+            "clean_script": clean_script,
         }
 
         logger.info("voice.complete", duration=duration, audio_path=audio_path)
@@ -179,3 +184,13 @@ class VoiceAgent(BaseAgent):
         except Exception as e:
             logger.warning("voice.duration_failed", error=str(e))
             return 0.0
+
+    def _get_word_timestamps(self, audio_path: str, language: str = "en") -> list:
+        """Get word-level timestamps using Whisper."""
+        try:
+            from app.integrations.whisper_client import transcribe_with_timestamps
+            result = transcribe_with_timestamps(audio_path)
+            return result.get("words", [])
+        except Exception as e:
+            logger.warning("voice.whisper_failed", error=str(e))
+            return []
