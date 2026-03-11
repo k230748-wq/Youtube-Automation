@@ -73,6 +73,32 @@ def _repair_json(text: str) -> str:
     return text
 
 
+def chat_completion(
+    messages: list,
+    system: str = None,
+    model: str = "claude-sonnet-4-5-20250929",
+    json_mode: bool = False,
+    max_tokens: int = 8192,
+    temperature: float = 0.7,
+) -> str | dict:
+    """Chat completion wrapper for messages-style API calls."""
+    # Extract user message from messages list
+    user_content = ""
+    for msg in messages:
+        if msg.get("role") == "user":
+            user_content = msg.get("content", "")
+            break
+
+    return call_anthropic(
+        prompt=user_content,
+        system_prompt=system,
+        model=model,
+        json_mode=json_mode,
+        max_tokens=max_tokens,
+        temperature=temperature,
+    )
+
+
 def _parse_json_robust(content: str) -> dict:
     """Parse JSON with multiple fallback strategies."""
     # Strategy 1: Direct parse
