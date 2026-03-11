@@ -31,11 +31,14 @@ def segment_into_visual_beats(script: str, word_timestamps: list, style_key: str
 
     config = prompts["visual_beat_segmentation"]
 
-    # Format word timestamps for prompt (truncate if too long)
-    ts_str = json.dumps(word_timestamps[:200], indent=2)  # Limit to avoid token overflow
+    # Format word timestamps for prompt
+    # For 8-min audio (~1200 words), we need all timestamps
+    # Claude can handle ~100k tokens, so 1200 words is fine
+    ts_str = json.dumps(word_timestamps, indent=2)
 
     # Replace placeholders in prompt (avoid format() due to JSON example in prompt)
-    user_prompt = config["user"].replace("{script}", script[:3000]).replace("{word_timestamps}", ts_str)
+    # Full script for 8-min video is ~1200 words (~7000 chars) - well within limits
+    user_prompt = config["user"].replace("{script}", script).replace("{word_timestamps}", ts_str)
 
     result = _call_llm(config["system"], user_prompt)
 
