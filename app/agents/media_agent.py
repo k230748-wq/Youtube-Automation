@@ -21,7 +21,7 @@ STYLE_MAP = {
 
 class MediaAgent(BaseAgent):
     agent_name = "media_agent"
-    phase_number = 3
+    phase_number = 4
 
     def run(self, input_data: dict, learning_context: list) -> dict:
         niche = input_data.get("niche", "")
