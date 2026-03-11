@@ -89,18 +89,42 @@ templates:
     - Low-key lighting for emotional moments (more shadows)
 
     ═══════════════════════════════════════════
-    STEP 3: GENERATE SCENES (30-45 SCENES, 10-15 SECONDS EACH)
+    STEP 3: GENERATE SCENES (50-70 SCENES, 8-12 SECONDS EACH)
     ═══════════════════════════════════════════
 
     Script sections:
     {{sections}}
 
-    Create **30-45 scenes**. Each scene lasts **10-15 seconds**.
+    Create **50-70 scenes**. Each scene lasts **8-12 seconds**.
+    This gives 4-5 images per minute for better visual-narration sync.
 
     ═══════════════════════════════════════════
     NARRATION TEXT — CRITICAL RULE
     ═══════════════════════════════════════════
     For each scene, copy the EXACT sentences from the script that should be heard while this image is shown. Every word of the script must appear in exactly one scene's narration_text. Do not paraphrase — copy verbatim. The narration_text fields, when concatenated in scene order, must reproduce the COMPLETE script with no gaps and no duplicates.
+
+    ═══════════════════════════════════════════
+    VISUAL-NARRATION ALIGNMENT — MANDATORY
+    ═══════════════════════════════════════════
+    CRITICAL: The image_prompt must depict EXACTLY what is happening in the narration_text for that scene. DO NOT show:
+    - A scene from LATER in the story while early narration plays
+    - A flashback scene while present-day narration plays
+    - An unrelated "mood" image that doesn't match the narration
+
+    CORRECT EXAMPLES:
+    - Narration: "I was five years old, sitting in the back of a borrowed car"
+      → Image: A five-year-old child sitting in a car backseat
+    - Narration: "The doctor handed me the test results"
+      → Image: Doctor handing papers to someone in a medical office
+    - Narration: "Thirty years later, I finally understood why"
+      → Image: Adult character in present-day setting, having a realization
+
+    WRONG EXAMPLES:
+    - Narration: "I was five years old" → Image shows adult cooking (WRONG — shows future scene)
+    - Narration: "The subway smelled like urine" → Image shows happy family dinner (WRONG — unrelated)
+
+    When the narrator DESCRIBES a past event, show THAT past event, not the narrator describing it.
+    When the narrator reflects on the present, show the present moment.
 
     ═══════════════════════════════════════════
     IMAGE REUSE — SAVE GENERATION COST
