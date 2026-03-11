@@ -34,14 +34,14 @@ templates:
     - A deeply emotional, first-person narrative told by the protagonist
     - Set in a specific, vivid location (a remote village, a rundown workshop, a mountain cabin, an orphanage, etc.)
     - About real human struggles: abandonment, survival, unexpected kindness, found family, redemption
-    - 8-15 minutes long when narrated
+    - 8-12 minutes long when narrated (STRICTLY under 12 minutes / 1800 words max)
     - The kind of story that makes viewers cry, feel hope, or both
 
     For each idea provide:
     - topic: The full story title in first person (e.g. "They left me at the mill when I was 6... until someone came looking for me")
     - score: 1-100 based on emotional impact and viewer engagement potential
     - hook: The opening line of narration that immediately grabs the viewer (first person, emotional, specific)
-    - estimated_length: 8-15 (always in this range)
+    - estimated_length: 8-12 (NEVER exceed 12 minutes)
     - keywords: 5 relevant search keywords for this type of emotional story content
     - story_premise: A 2-3 sentence summary of the full story arc (beginning, middle, emotional climax, resolution)
 

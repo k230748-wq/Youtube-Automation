@@ -57,13 +57,19 @@ templates:
 
     Story premise: {{topic}}
     Story arc: {{story_premise}}
-    Target length: {{target_length}} minutes of narration
+    Target length: {{target_length}} minutes of narration (MAXIMUM 12 minutes / 1800 words)
     Opening hook: {{hook}}
 
-    Plan 6-8 sections for this story. For each section, provide:
+    CRITICAL LENGTH CONSTRAINT:
+    - Total script MUST be 1200-1800 words maximum (8-12 minutes when narrated at 150 words/minute)
+    - NEVER exceed 1800 words total across all sections
+    - Each section should have a word_estimate field
+
+    Plan 5-6 sections for this story. For each section, provide:
     - name: a short section title
     - summary: 2-3 sentences describing what happens in this section, key emotions, dialogue beats, and sensory details to include
-    - duration_estimate: seconds (total across all sections should equal {{target_length}} × 60)
+    - duration_estimate: seconds (total across all sections MUST equal {{target_length}} × 60, max 720 seconds)
+    - word_estimate: target words for this section (total must be ≤ 1800 words)
 
     STRUCTURE:
     - Opening hook (20-30s — drop the viewer into the most gripping moment)
@@ -90,6 +96,12 @@ templates:
 
     Now write the FULL first-person narration text for ALL sections above, in order. Combine them into one continuous story.
 
+    CRITICAL LENGTH CONSTRAINT:
+    - Total narration MUST be 1200-1800 words maximum across ALL sections
+    - Follow the word_estimate from each section in the outline
+    - NEVER exceed 1800 words total — this is a HARD LIMIT
+    - Count your words as you write each section
+
     WRITING STYLE:
     - First person narration throughout. The protagonist is telling THEIR story.
     - Raw, emotional, intimate tone — like confiding in a close friend
@@ -99,10 +111,11 @@ templates:
     - Include dialogue between characters (in quotes). Make it natural, not formal.
     - Do NOT include educational content, lists, tips, or calls to action.
     - Do NOT break the first-person narrative voice.
+    - Keep it CONCISE — every sentence must earn its place
 
     Return as JSON with ONLY sections (no separate "script" field — we will join them):
     {
-      "sections": [{"name": "section name from outline", "text": "full narration for this section"}]
+      "sections": [{"name": "section name from outline", "text": "full narration for this section", "word_count": 250}]
     }
 
   generate_title_story: |
