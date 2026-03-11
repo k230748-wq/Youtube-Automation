@@ -20,8 +20,8 @@ YouTube Automation is a multi-agent pipeline for automated YouTube video creatio
 |-------|-------|-------------|
 | 1 | `ideas_agent.py` | Google Trends + SerpAPI + YouTube Data API → ranked video ideas with scores, hooks, keywords |
 | 2 | `script_agent.py` | Claude → full narration script, 3+ title options, description, tags; creates Video record |
-| 3 | `media_agent.py` | LLM scene extraction → Pexels/Pixabay stock clips → Ideogram thumbnail; saves Assets |
-| 4 | `voice_agent.py` | OpenAI TTS (fallback ElevenLabs) → narration audio; handles chunking for long scripts |
+| 3 | `voice_agent.py` | OpenAI TTS (fallback ElevenLabs) → narration audio + word timestamps via Whisper; handles chunking |
+| 4 | `media_agent.py` | Visual Beat Segmenter → timestamp-locked scenes → Pexels/Pixabay clips → Ideogram thumbnail |
 | 5 | `video_agent.py` | FFmpeg: download clips → normalize/scale 1080p → crossfade transitions → mix audio/music → fades |
 | 6 | `qa_agent.py` | Whisper subtitles (SRT) → LLM quality review → burn styled subtitles → upload package |
 
@@ -206,6 +206,35 @@ Single-file App.jsx pattern (matching ZEULE sister project):
 - **Dark mode**: Always-on (slate-950 bg), toggle switches to light
 - **Sidebar**: Collapsible, 6 nav items + dark mode + collapse toggle
 - **Auto-poll**: Pipeline detail refreshes every 5s when status is `running`
+
+## Audio-First Architecture (2026-03-11)
+
+Pipeline phase order changed for better visual-narration alignment:
+- **Phase 3**: Voice Generation (was Phase 4)
+- **Phase 4**: Media Collection (was Phase 3)
+
+Voice runs first → Whisper extracts word timestamps → Visual Beat Segmenter
+determines scene boundaries → Media agent generates images locked to exact times.
+
+**Data Flow:**
+```
+Script → Voice Agent → audio + word_timestamps
+                    ↓
+          Visual Beat Segmenter → segments with scene_id + timing
+                    ↓
+          Media Agent → scene_clips with start_time/end_time
+                    ↓
+          Video Agent → uses locked timestamps for assembly
+```
+
+**Key Files:**
+- `app/orchestrator/state.py` — Phase ordering constants
+- `app/services/visual_beat_segmenter.py` — LLM-guided scene detection
+- `config/prompts/visual_beat_segmentation.yaml` — Segmentation prompt
+
+**Target:** 90%+ visual-narration alignment (up from ~70-75%).
+
+---
 
 ## What's Next for Launch
 
