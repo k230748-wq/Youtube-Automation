@@ -109,6 +109,8 @@ class VideoAgent(BaseAgent):
                         "source": clips[0].get("source", "ideogram"),
                         "effect": scene.get("effect", "slow_zoom_in"),
                         "narration_text": scene.get("narration_text", ""),
+                        "start_time": scene.get("start_time"),     # NEW
+                        "end_time": scene.get("end_time"),         # NEW
                     })
                     logger.info("video.ai_image_ready", scene=i)
                 else:
@@ -186,13 +188,21 @@ class VideoAgent(BaseAgent):
         if num_clips == 0:
             return []
 
-        # Check if narration anchors are available (story mode with new prompt)
-        has_anchors = all(c.get("narration_text") for c in downloaded_clips)
+        # Check if we have locked timing (audio-first architecture)
+        has_locked_timing = all(
+            c.get("start_time") is not None and c.get("end_time") is not None
+            for c in downloaded_clips
+        )
 
-        if has_anchors:
+        if has_locked_timing:
+            # Use exact timestamps from segmenter
+            clips_with_duration = self._use_locked_timings(downloaded_clips)
+        elif all(c.get("narration_text") for c in downloaded_clips):
+            # Legacy: estimate from character count
             clips_with_duration = self._compute_anchor_timings(
                 downloaded_clips, total_audio_duration)
         else:
+            # Fallback: proportional scaling
             clips_with_duration = self._compute_proportional_timings(
                 downloaded_clips, total_audio_duration, zoom)
 
@@ -286,6 +296,16 @@ class VideoAgent(BaseAgent):
 
             result.append({**clip, "target_duration": target_duration})
 
+        return result
+
+    def _use_locked_timings(self, clips: list) -> list:
+        """Use exact timestamps from audio-first segmentation."""
+        result = []
+        for clip in clips:
+            start = clip.get("start_time", 0)
+            end = clip.get("end_time", start + 5)
+            target_duration = max(2.0, min(20.0, end - start))
+            result.append({**clip, "target_duration": target_duration})
         return result
 
     def _stitch_with_transitions(self, clip_paths: list, video_dir: str) -> str:
