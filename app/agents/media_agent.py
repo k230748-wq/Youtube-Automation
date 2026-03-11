@@ -8,7 +8,7 @@ from app.agents.base import BaseAgent
 logger = structlog.get_logger(__name__)
 
 STYLE_MAP = {
-    "cinematic": "Photorealistic photograph, shot on 35mm film. Natural muted color palette with occasional warm lamplight accents. Shallow depth of field, slight film grain. Looks like a still frame from an independent drama film. Realistic imperfect lighting — mixed daylight from windows and warm incandescent bulbs. Natural skin textures, no airbrushing. Grounded, documentary-style realism.",
+    "cinematic": "Photorealistic photograph of REAL HUMANS with normal human ears and features, shot on 35mm film. Natural muted color palette with occasional warm lamplight accents. Shallow depth of field, slight film grain. Looks like a still frame from an independent drama film. Realistic imperfect lighting — mixed daylight from windows and warm incandescent bulbs. Natural skin textures, no airbrushing. Grounded, documentary-style realism. NO fantasy elements, NO elf ears, NO pointed ears, NO supernatural features — strictly realistic humans only.",
     "anime": "Japanese anime art style, vibrant cel-shaded colors, clean linework, expressive characters, Studio Ghibli influenced, warm color palette, detailed interior backgrounds, dramatic emotional compositions.",
     "watercolor": "Soft watercolor painting style, flowing washes of color, visible brush strokes, dreamy atmosphere, paper texture, warm muted tones, character-focused intimate composition.",
     "comic": "Bold comic book illustration, thick ink outlines, halftone dots, dynamic composition, vibrant flat colors, panel-style framing, expressive character faces, dramatic angles.",
