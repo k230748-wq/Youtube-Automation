@@ -57,65 +57,63 @@ templates:
 
     Story premise: {{topic}}
     Story arc: {{story_premise}}
-    Target length: {{target_length}} minutes of narration (MAXIMUM 12 minutes / 1800 words)
     Opening hook: {{hook}}
 
-    CRITICAL LENGTH CONSTRAINT:
-    - Total script MUST be 1200-1800 words maximum (8-12 minutes when narrated at 150 words/minute)
-    - NEVER exceed 1800 words total across all sections
-    - Each section should have a word_estimate field
+    ⚠️ ABSOLUTE HARD LIMITS — VIOLATING THESE WILL CAUSE FAILURE:
+    - EXACTLY 5 sections (not 6, not 7, not 8 — FIVE)
+    - Total duration: EXACTLY 480 seconds (8 minutes)
+    - Total words: EXACTLY 1200 words across all sections
+    - Each section: ~240 words, ~96 seconds
 
-    Plan 5-6 sections for this story. For each section, provide:
-    - name: a short section title
-    - summary: 2-3 sentences describing what happens in this section, key emotions, dialogue beats, and sensory details to include
-    - duration_estimate: seconds (total across all sections MUST equal {{target_length}} × 60, max 720 seconds)
-    - word_estimate: target words for this section (total must be ≤ 1800 words)
+    Plan EXACTLY 5 sections. For each section:
+    - name: short section title (2-4 words)
+    - summary: 1-2 sentences describing key events
+    - duration_estimate: seconds (MUST total 480)
+    - word_estimate: target words (MUST total 1200)
 
-    STRUCTURE:
-    - Opening hook (20-30s — drop the viewer into the most gripping moment)
-    - Backstory (1-2 min — the world before everything changed)
-    - Rising action (3-4 min — events unfold, tension builds, new characters)
-    - Climax (2-3 min — emotional peak, revelation, confrontation)
-    - Resolution (1-2 min — what happened after, how things changed)
-    - Closing (20-30s — reflective final thought)
+    STRUCTURE (5 sections only):
+    1. Hook + Backstory (96s, 240 words) — drop into the gripping moment, establish world
+    2. Rising Action Part 1 (96s, 240 words) — tension builds
+    3. Rising Action Part 2 (96s, 240 words) — more complications
+    4. Climax (96s, 240 words) — emotional peak
+    5. Resolution + Closing (96s, 240 words) — aftermath and reflection
 
     Return as JSON:
     {
-      "sections": [{"name": "...", "summary": "...", "duration_estimate": 90}],
-      "total_estimated_duration": total_seconds
+      "sections": [{"name": "...", "summary": "...", "duration_estimate": 96, "word_estimate": 240}],
+      "total_estimated_duration": 480
     }
 
   write_script_story_narrate: |
-    You are a master storyteller writing narration for an emotional, first-person YouTube story video — like the channel @milyunavidas.
+    You are a master storyteller writing narration for an emotional, first-person YouTube story video.
 
     Story premise: {{topic}}
     Opening hook: {{hook}}
 
-    Here is the section outline you must follow:
+    Section outline to follow:
     {{outline}}
 
-    Now write the FULL first-person narration text for ALL sections above, in order. Combine them into one continuous story.
+    ⚠️ ABSOLUTE HARD LIMITS — YOU MUST OBEY:
+    - Total narration: EXACTLY 1200 words (not 1500, not 2000, EXACTLY 1200)
+    - Each section: EXACTLY 240 words (count as you write!)
+    - If you write more than 1200 words total, this will FAIL
 
-    CRITICAL LENGTH CONSTRAINT:
-    - Total narration MUST be 1200-1800 words maximum across ALL sections
-    - Follow the word_estimate from each section in the outline
-    - NEVER exceed 1800 words total — this is a HARD LIMIT
-    - Count your words as you write each section
+    WORD COUNTING RULES:
+    - After writing each section, count your words
+    - If a section exceeds 240 words, DELETE sentences until it fits
+    - Better to be slightly under than over
 
     WRITING STYLE:
-    - First person narration throughout. The protagonist is telling THEIR story.
-    - Raw, emotional, intimate tone — like confiding in a close friend
-    - Vivid sensory details: describe what you see, hear, smell, feel
-    - Show emotions through actions, not just statements ("My hands trembled as I opened the door" not "I was scared")
-    - Slow, deliberate pacing — let moments breathe. Describe silence, waiting, small details.
-    - Include dialogue between characters (in quotes). Make it natural, not formal.
-    - Do NOT include educational content, lists, tips, or calls to action.
-    - Do NOT break the first-person narrative voice.
-    - Keep it CONCISE — every sentence must earn its place
+    - First person narration. Raw, emotional, intimate tone.
+    - Vivid but BRIEF sensory details
+    - Show emotions through actions ("My hands trembled" not "I was scared")
+    - Include SHORT dialogue (1-2 lines max per exchange)
+    - Every sentence must earn its place — cut ruthlessly
+    - NO educational content, lists, tips, or calls to action
 
-    Return as JSON with ONLY sections (no separate "script" field — we will join them):
+    Return as JSON:
     {
-      "sections": [{"name": "section name from outline", "text": "full narration for this section", "word_count": 250}]
+      "sections": [{"name": "section name", "text": "narration (EXACTLY 240 words)", "word_count": 240}]
     }
 
   generate_title_story: |

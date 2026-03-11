@@ -140,7 +140,8 @@ class ScriptAgent(BaseAgent):
         if self.language != "en":
             lang_name = LANGUAGE_NAMES.get(self.language, self.language)
             narrate_prompt += f"\n\nIMPORTANT: Write the ENTIRE narration in {lang_name}. All dialogue, inner thoughts, and descriptions must be in {lang_name}."
-        narrate_result = self.call_llm("anthropic", narrate_prompt, json_mode=True, max_tokens=8192)
+        # Reduced max_tokens to prevent LLM from generating too much content
+        narrate_result = self.call_llm("anthropic", narrate_prompt, json_mode=True, max_tokens=3000)
         narrate_parsed = self.parse_json_response(narrate_result) if isinstance(narrate_result, str) else narrate_result
         logger.info("script.story.narrate_done")
 
@@ -154,10 +155,11 @@ class ScriptAgent(BaseAgent):
                 section.setdefault("duration_estimate", 120)
             script_parts.append(section.get("text", ""))
 
-        # HARD ENFORCEMENT: Truncate script if over word limit (1800 words = ~12 min)
-        MAX_WORDS = 1800
+        # HARD ENFORCEMENT: Truncate script if over word limit (1200 words = ~8 min)
+        MAX_WORDS = 1200
         full_script = "\n\n".join(script_parts)
         word_count = len(full_script.split())
+
         if word_count > MAX_WORDS:
             logger.warning("script.truncating", original_words=word_count, max_words=MAX_WORDS)
             truncated_script, truncated_sections = self._truncate_script(
@@ -165,10 +167,18 @@ class ScriptAgent(BaseAgent):
             )
             narrated_sections = truncated_sections
             full_script = truncated_script
-            # Recalculate duration based on new word count (~150 words/min)
-            new_word_count = len(full_script.split())
-            total_duration = int(new_word_count / 150 * 60)
-            logger.info("script.truncated", new_words=new_word_count, new_duration=total_duration)
+            word_count = len(full_script.split())
+            logger.info("script.truncated", new_words=word_count)
+
+        # ALWAYS calculate duration from actual word count (~150 words/min)
+        # Never trust LLM-provided duration estimates
+        total_duration = int(word_count / 150 * 60)
+        logger.info("script.final", words=word_count, duration_seconds=total_duration)
+
+        # Update section durations proportionally based on word count
+        for section in narrated_sections:
+            section_words = len(section.get("text", "").split())
+            section["duration_estimate"] = int(section_words / 150 * 60)
 
         return {
             "script": full_script,
