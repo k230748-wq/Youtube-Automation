@@ -154,11 +154,74 @@ class ScriptAgent(BaseAgent):
                 section.setdefault("duration_estimate", 120)
             script_parts.append(section.get("text", ""))
 
+        # HARD ENFORCEMENT: Truncate script if over word limit (1800 words = ~12 min)
+        MAX_WORDS = 1800
+        full_script = "\n\n".join(script_parts)
+        word_count = len(full_script.split())
+        if word_count > MAX_WORDS:
+            logger.warning("script.truncating", original_words=word_count, max_words=MAX_WORDS)
+            truncated_script, truncated_sections = self._truncate_script(
+                narrated_sections, MAX_WORDS
+            )
+            narrated_sections = truncated_sections
+            full_script = truncated_script
+            # Recalculate duration based on new word count (~150 words/min)
+            new_word_count = len(full_script.split())
+            total_duration = int(new_word_count / 150 * 60)
+            logger.info("script.truncated", new_words=new_word_count, new_duration=total_duration)
+
         return {
-            "script": "\n\n".join(script_parts),
+            "script": full_script,
             "sections": narrated_sections,
             "total_estimated_duration": total_duration,
         }
+
+    def _truncate_script(self, sections: list, max_words: int) -> tuple:
+        """Truncate script to fit within word limit, preserving section structure.
+
+        Returns (truncated_script, truncated_sections).
+        """
+        # Calculate total words and ratio needed
+        total_words = sum(len(s.get("text", "").split()) for s in sections)
+        if total_words <= max_words:
+            return "\n\n".join(s.get("text", "") for s in sections), sections
+
+        ratio = max_words / total_words
+        truncated_sections = []
+        truncated_parts = []
+        words_used = 0
+
+        for section in sections:
+            text = section.get("text", "")
+            section_words = text.split()
+            target_words = int(len(section_words) * ratio)
+
+            # Ensure we don't exceed remaining budget
+            remaining_budget = max_words - words_used
+            target_words = min(target_words, remaining_budget)
+
+            if target_words > 0 and section_words:
+                # Truncate to target words, try to end at sentence boundary
+                truncated_text = " ".join(section_words[:target_words])
+
+                # Try to end at last sentence
+                last_period = truncated_text.rfind(".")
+                last_question = truncated_text.rfind("?")
+                last_exclaim = truncated_text.rfind("!")
+                last_sentence = max(last_period, last_question, last_exclaim)
+
+                if last_sentence > len(truncated_text) * 0.7:  # Only if > 70% preserved
+                    truncated_text = truncated_text[:last_sentence + 1]
+
+                truncated_sections.append({
+                    "name": section.get("name", ""),
+                    "text": truncated_text,
+                    "duration_estimate": int(section.get("duration_estimate", 120) * ratio),
+                })
+                truncated_parts.append(truncated_text)
+                words_used += len(truncated_text.split())
+
+        return "\n\n".join(truncated_parts), truncated_sections
 
     def _generate_story_titles(self, topic: str) -> list:
         """Generate emotional first-person titles for story mode."""
