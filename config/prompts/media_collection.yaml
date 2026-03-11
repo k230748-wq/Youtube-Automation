@@ -146,10 +146,11 @@ templates:
 
     CRITICAL IMAGE PROMPT RULES:
     - Each image_prompt must be 80-150 words
-    - ALWAYS start with the camera angle (e.g. "Medium wide shot of..." or "Close-up of..." or "Over-the-shoulder view from behind...")
+    - ALWAYS start with: "[DEPICTS: first 30 chars of narration_text]" — this anchors the visual to the narration
+    - Then specify the camera angle (e.g. "Medium wide shot of..." or "Close-up of..." or "Over-the-shoulder view from behind...")
     - ALWAYS include the FULL character description (copy-paste from bible — every detail)
     - ALWAYS include the FULL setting description (copy-paste from bible — specific objects, textures)
-    - ALWAYS describe a specific ACTION the character is doing
+    - ALWAYS describe a specific ACTION the character is doing — this action MUST match what the narration describes
     - ALWAYS specify lighting source and quality
     - Do NOT include the style prefix — it will be added automatically
     - NO text, words, letters, logos, or watermarks in any image
