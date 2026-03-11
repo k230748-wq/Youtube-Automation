@@ -1,13 +1,23 @@
 """Videos API — list, manage, download, and upload voice for generated videos."""
 
 import os
-from flask import Blueprint, request, jsonify, send_file
+from flask import Blueprint, request, jsonify, send_file, Response
 
 from app import db
 from app.models.video import Video
 from app.models.asset import Asset
 
 videos_bp = Blueprint("videos", __name__)
+
+
+def stream_file(file_path, chunk_size=1024 * 1024):
+    """Generator to stream file in chunks (default 1MB chunks)."""
+    with open(file_path, "rb") as f:
+        while True:
+            chunk = f.read(chunk_size)
+            if not chunk:
+                break
+            yield chunk
 
 
 @videos_bp.route("/", methods=["GET"])
@@ -59,9 +69,11 @@ def update_video(video_id):
 
 @videos_bp.route("/<video_id>/download/<file_type>", methods=["GET"])
 def download_video_file(video_id, file_type):
-    """Download a video file. file_type: video | video_no_subs | thumbnail | audio | subtitle
+    """Download a video file with streaming and resumable download support.
 
-    Checks both the original path and /app/downloads (web volume) for the file.
+    file_type: video | thumbnail | audio | subtitle
+    Supports Range requests for resumable downloads.
+    Uses chunked streaming for large files to prevent timeouts.
     """
     video = Video.query.get(video_id)
     if not video:
@@ -69,50 +81,109 @@ def download_video_file(video_id, file_type):
 
     # Map file type to video model path and downloads folder filename
     path_map = {
-        "video": (video.final_video_path, "video.mp4"),
-        "thumbnail": (video.thumbnail_path, "thumbnail.png"),
-        "audio": (video.audio_path, "audio.mp3"),
-        "subtitle": (video.subtitle_path, "subtitle.srt"),
+        "video": (video.final_video_path, "video.mp4", "video/mp4"),
+        "thumbnail": (video.thumbnail_path, "thumbnail.png", "image/png"),
+        "audio": (video.audio_path, "audio.mp3", "audio/mpeg"),
+        "subtitle": (video.subtitle_path, "subtitle.srt", "text/plain; charset=utf-8"),
     }
 
     if file_type not in path_map:
         return jsonify({"error": f"Invalid file type '{file_type}'"}), 400
 
-    original_path, downloads_name = path_map[file_type]
+    original_path, downloads_name, content_type = path_map[file_type]
+
+    # Find the actual file path
+    file_path = None
 
     # Try original path first (for local dev)
     if original_path and os.path.exists(original_path):
+        file_path = os.path.abspath(original_path)
+    else:
+        # Try /app/downloads (web volume on Railway)
+        pipeline_id = video.pipeline_run_id
+
+        # Fallback: look up pipeline from Phase 2 output if video was created before fix
+        if not pipeline_id:
+            from app.models.phase_result import PhaseResult
+            phase_2 = PhaseResult.query.filter(
+                PhaseResult.phase_number == 2,
+                PhaseResult.output_data.isnot(None),
+            ).all()
+            for p2 in phase_2:
+                if p2.output_data.get("video_id") == video_id:
+                    pipeline_id = p2.pipeline_run_id
+                    break
+
+        if pipeline_id:
+            downloads_path = f"/app/downloads/{pipeline_id}/{downloads_name}"
+            if os.path.exists(downloads_path):
+                file_path = downloads_path
+
+    if not file_path:
+        return jsonify({"error": f"File not found for type '{file_type}'"}), 404
+
+    # Get file size
+    file_size = os.path.getsize(file_path)
+
+    # For small files (<10MB), use regular send_file
+    if file_size < 10 * 1024 * 1024:
         return send_file(
-            os.path.abspath(original_path),
+            file_path,
             as_attachment=True,
-            download_name=os.path.basename(original_path),
+            download_name=downloads_name,
         )
 
-    # Try /app/downloads (web volume on Railway)
-    pipeline_id = video.pipeline_run_id
+    # For large files, use streaming with Range support
+    range_header = request.headers.get("Range")
 
-    # Fallback: look up pipeline from Phase 2 output if video was created before fix
-    if not pipeline_id:
-        from app.models.phase_result import PhaseResult
-        phase_2 = PhaseResult.query.filter(
-            PhaseResult.phase_number == 2,
-            PhaseResult.output_data.isnot(None),
-        ).all()
-        for p2 in phase_2:
-            if p2.output_data.get("video_id") == video_id:
-                pipeline_id = p2.pipeline_run_id
-                break
+    if range_header:
+        # Handle Range request for resumable downloads
+        byte_start = 0
+        byte_end = file_size - 1
 
-    if pipeline_id:
-        downloads_path = f"/app/downloads/{pipeline_id}/{downloads_name}"
-        if os.path.exists(downloads_path):
-            return send_file(
-                downloads_path,
-                as_attachment=True,
-                download_name=downloads_name,
-            )
+        match = range_header.replace("bytes=", "").split("-")
+        if match[0]:
+            byte_start = int(match[0])
+        if len(match) > 1 and match[1]:
+            byte_end = int(match[1])
 
-    return jsonify({"error": f"File not found for type '{file_type}'"}), 404
+        length = byte_end - byte_start + 1
+
+        def generate_range():
+            with open(file_path, "rb") as f:
+                f.seek(byte_start)
+                remaining = length
+                while remaining > 0:
+                    chunk_size = min(1024 * 1024, remaining)  # 1MB chunks
+                    chunk = f.read(chunk_size)
+                    if not chunk:
+                        break
+                    remaining -= len(chunk)
+                    yield chunk
+
+        response = Response(
+            generate_range(),
+            status=206,
+            content_type=content_type,
+            direct_passthrough=True,
+        )
+        response.headers["Content-Range"] = f"bytes {byte_start}-{byte_end}/{file_size}"
+        response.headers["Content-Length"] = length
+        response.headers["Accept-Ranges"] = "bytes"
+        response.headers["Content-Disposition"] = f'attachment; filename="{downloads_name}"'
+        return response
+
+    # Full file streaming download
+    response = Response(
+        stream_file(file_path),
+        content_type=content_type,
+        direct_passthrough=True,
+    )
+    response.headers["Content-Length"] = file_size
+    response.headers["Accept-Ranges"] = "bytes"
+    response.headers["Content-Disposition"] = f'attachment; filename="{downloads_name}"'
+    response.headers["Cache-Control"] = "no-cache"
+    return response
 
 
 @videos_bp.route("/<video_id>/upload-voice", methods=["POST"])
