@@ -22,4 +22,4 @@ RUN mkdir -p /app/assets
 
 EXPOSE 5000
 
-CMD bash -c "flask db upgrade 2>/dev/null; python -c 'from app import create_app, db; app = create_app(); app.app_context().push(); db.create_all()' && gunicorn -w 4 -b 0.0.0.0:5000 'app:create_app()'"
+CMD bash -c "flask db upgrade 2>/dev/null; python -c 'from app import create_app, db; app = create_app(); app.app_context().push(); db.create_all()' && gunicorn -c gunicorn.conf.py 'app:create_app()'"
