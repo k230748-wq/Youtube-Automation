@@ -46,11 +46,24 @@ class MediaAgent(BaseAgent):
         logger.info("media.start", title=title, sections=len(sections), mode=mode, max_scenes=max_scenes)
 
         if mode == "story":
-            # Story mode: all AI-generated images, no stock video
-            scenes = self._extract_scenes_story(sections, style_key)
+            # Story mode: audio-first with exact timing
+            voice_data = self._get_voice_data(input_data)
+            word_timestamps = voice_data.get("word_timestamps", [])
+            clean_script = voice_data.get("clean_script", script)
+
+            if word_timestamps:
+                # Use exact timing from audio
+                scenes = self._segment_with_timing(
+                    clean_script, sections, word_timestamps, style_key
+                )
+            else:
+                # Fallback to old method if no timestamps
+                scenes = self._extract_scenes_story(sections, style_key)
+
             if max_scenes and len(scenes) > max_scenes:
                 logger.info("media.scenes_limited", original=len(scenes), limited=max_scenes)
                 scenes = scenes[:max_scenes]
+
             scene_clips = self._generate_story_images(scenes, pipeline_run_id, video_id, style_key)
         else:
             # Hybrid mode: mix of stock video + AI images (existing logic)
@@ -83,6 +96,10 @@ class MediaAgent(BaseAgent):
 
         logger.info("media.complete", scenes=len(scenes), clips_found=result["clips_found"])
         return result
+
+    def _get_voice_data(self, input_data: dict) -> dict:
+        """Get voice output — now from Phase 3 (audio-first architecture)."""
+        return input_data.get("phase_3_output", {})
 
     def _extract_scenes(self, sections: list) -> list:
         """Use LLM to break script sections into visual scenes."""
@@ -303,6 +320,47 @@ class MediaAgent(BaseAgent):
             scenes = scenes[:70]
 
         logger.info("media.story_scenes_extracted", count=len(scenes), style=style_key)
+        return scenes
+
+    def _segment_with_timing(self, script: str, sections: list,
+                              word_timestamps: list, style_key: str) -> list:
+        """Use visual beat segmenter to get exact scene timing."""
+        from app.services.visual_beat_segmenter import segment_into_visual_beats
+
+        result = segment_into_visual_beats(script, word_timestamps, style_key)
+        segments = result.get("segments", [])
+
+        # Group segments by scene_id → unique scenes to generate
+        scenes = []
+        seen_scene_ids = set()
+
+        for seg in segments:
+            scene_id = seg["scene_id"]
+            if scene_id in seen_scene_ids:
+                continue
+            seen_scene_ids.add(scene_id)
+
+            # Get all segments for this scene_id
+            scene_segments = [s for s in segments if s["scene_id"] == scene_id]
+
+            # Calculate total duration and combined text
+            start_time = min(s["start"] for s in scene_segments)
+            end_time = max(s["end"] for s in scene_segments)
+            combined_text = " ".join(s["text"] for s in scene_segments)
+            visual_desc = scene_segments[0].get("visual_description", combined_text[:50])
+
+            scenes.append({
+                "scene_number": scene_id,
+                "media_type": "ai_image",
+                "start_time": start_time,
+                "end_time": end_time,
+                "duration_seconds": round(end_time - start_time, 2),
+                "narration_text": combined_text,
+                "visual_description": visual_desc,
+                "image_prompt": f"[DEPICTS: {combined_text[:30]}] {visual_desc}",
+            })
+
+        logger.info("media.segmented_timing", num_scenes=len(scenes))
         return scenes
 
     def _generate_story_images(self, scenes: list, pipeline_run_id: str,
