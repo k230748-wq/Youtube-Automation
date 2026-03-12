@@ -14,16 +14,15 @@ YouTube Automation is a multi-agent pipeline for automated YouTube video creatio
 - **Developer**: Mehroz Muneer
 - **Root**: `/Users/apple/Desktop/Zelu/youtube-automation/`
 
-## 6-Phase Pipeline
+## Pipeline Phases
 
-| Phase | Agent | What It Does |
-|-------|-------|-------------|
-| 1 | `ideas_agent.py` | Google Trends + SerpAPI + YouTube Data API → ranked video ideas with scores, hooks, keywords |
-| 2 | `script_agent.py` | Claude → full narration script, 3+ title options, description, tags; creates Video record |
-| 3 | `voice_agent.py` | OpenAI TTS (fallback ElevenLabs) → narration audio + word timestamps via Whisper; handles chunking |
-| 4 | `media_agent.py` | Visual Beat Segmenter → timestamp-locked scenes → Pexels/Pixabay clips → Ideogram thumbnail |
-| 5 | `video_agent.py` | FFmpeg: download clips → normalize/scale 1080p → crossfade transitions → mix audio/music → fades |
-| 6 | `qa_agent.py` | Whisper subtitles (SRT) → LLM quality review → burn styled subtitles → upload package |
+1. **Ideas Discovery** — Find trending story topics from Reddit/Perplexity
+2. **Script Generation** — Write narration script with hooks/payoffs
+3. **Voice Generation** — Generate TTS audio + word timestamps via ElevenLabs/Whisper
+4. **Prompt Generation** — Generate rich image prompts with character consistency (NEW)
+5. **Media Collection** — Generate AI images using prompts from Phase 4
+6. **Video Assembly** — Stitch clips with Ken Burns effects + narration
+7. **QA & Package** — Add subtitles, generate thumbnail, package metadata
 
 ## Stack
 
@@ -46,7 +45,7 @@ YouTube Automation is a multi-agent pipeline for automated YouTube video creatio
 ## Current State — March 2, 2026
 
 ### Backend: 100% Complete
-- **6 agents**: All implemented with learning context injection, JSON mode LLM calls, error handling
+- **7 agents**: All implemented with learning context injection, JSON mode LLM calls, error handling
 - **13 integrations**: anthropic, openai, perplexity, serpapi, pexels, pixabay, ideogram, youtube_data, youtube_upload, elevenlabs, whisper, ffmpeg, bannerbear
 - **9 API blueprints / 38 endpoints**: pipelines, channels, videos, ideas, approvals, assets, phase-toggles, tasks, upload
 - **11 database models**: Channel, Idea, Video, Asset, PipelineRun, PhaseResult, Approval, PromptTemplate, LearningLog, PhaseToggle + base
@@ -73,7 +72,7 @@ YouTube Automation is a multi-agent pipeline for automated YouTube video creatio
 youtube-automation/
 ├── app/
 │   ├── __init__.py          # create_app() factory
-│   ├── agents/              # 6 phase agents + base.py
+│   ├── agents/              # 7 phase agents + base.py
 │   ├── api/                 # 8 blueprints + routes.py
 │   ├── integrations/        # 13 external clients
 │   ├── models/              # 11 SQLAlchemy models
@@ -143,7 +142,7 @@ youtube-automation/
 - `POST /<id>/resolve` — resolve (decision: approved/rejected/edited, notes, edited_output)
 
 ### Phase Toggles `/api/phase-toggles/`
-- `GET /` — list all 6
+- `GET /` — list all 7
 - `PATCH /<phase_number>` — update (is_enabled, requires_approval)
 - `POST /seed` — seed defaults
 
