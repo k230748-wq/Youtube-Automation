@@ -43,21 +43,23 @@ PHASE_NAMES = {
     1: "Ideas Discovery",
     2: "Script Generation",
     3: "Voice Generation",
-    4: "Media Collection",
-    5: "Video Assembly",
-    6: "QA & Package",
+    4: "Prompt Generation",
+    5: "Media Collection",
+    6: "Video Assembly",
+    7: "QA & Package",
 }
 
 PHASE_AGENTS = {
     1: "ideas_agent",
     2: "script_agent",
     3: "voice_agent",
-    4: "media_agent",
-    5: "video_agent",
-    6: "qa_agent",
+    4: "prompt_agent",
+    5: "media_agent",
+    6: "video_agent",
+    7: "qa_agent",
 }
 
-TOTAL_PHASES = 6
+TOTAL_PHASES = 7
 
 
 def can_transition_pipeline(current: str, target: str) -> bool:
