@@ -104,7 +104,7 @@ class PromptAgent(BaseAgent):
         result = self.call_llm(
             "anthropic",
             user_prompt,
-            system=config["system"],
+            system_prompt=config["system"],
             json_mode=True,
             max_tokens=16384,
         )
