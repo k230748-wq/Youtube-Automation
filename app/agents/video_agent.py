@@ -10,7 +10,7 @@ logger = structlog.get_logger(__name__)
 
 class VideoAgent(BaseAgent):
     agent_name = "video_agent"
-    phase_number = 5
+    phase_number = 6
 
     def run(self, input_data: dict, learning_context: list) -> dict:
         pipeline_run_id = input_data.get("pipeline_run_id", "")
@@ -18,22 +18,22 @@ class VideoAgent(BaseAgent):
 
         # Get data from previous phases
         phase_2 = input_data.get("phase_2_output", {})
-        phase_3 = input_data.get("phase_3_output", {})  # Now Voice (was Media)
-        phase_4 = input_data.get("phase_4_output", {})  # Now Media (was Voice)
+        phase_3 = input_data.get("phase_3_output", {})  # Voice
+        phase_5 = input_data.get("phase_5_output", {})  # Media (was phase_4)
 
         title = phase_2.get("selected_title", "")
         video_id = phase_2.get("video_id")
         sections = phase_2.get("sections", [])
 
-        # Phase 3 is now Voice
+        # Phase 3 is Voice
         audio_path = phase_3.get("audio_path", "")
         audio_duration = phase_3.get("duration_seconds", 0)
 
-        # Phase 4 is now Media
-        scene_clips = phase_4.get("scene_clips", [])
+        # Phase 5 is Media (was Phase 4)
+        scene_clips = phase_5.get("scene_clips", [])
 
         if not scene_clips:
-            raise ValueError("No scene clips from Phase 4 — cannot assemble video")
+            raise ValueError("No scene clips from Phase 5 — cannot assemble video")
         if not audio_path:
             raise ValueError("No audio from Phase 3 — cannot assemble video")
 
