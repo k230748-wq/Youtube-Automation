@@ -21,7 +21,7 @@ STYLE_MAP = {
 
 class MediaAgent(BaseAgent):
     agent_name = "media_agent"
-    phase_number = 4
+    phase_number = 5
 
     def run(self, input_data: dict, learning_context: list) -> dict:
         niche = input_data.get("niche", "")
@@ -37,28 +37,39 @@ class MediaAgent(BaseAgent):
         if not script:
             raise ValueError("No script from Phase 2 — cannot collect media")
 
+        # Get prompt data from Phase 4 (Prompt Generation)
+        phase_4 = input_data.get("phase_4_output", {})
+        scene_prompts = phase_4.get("scene_prompts", [])
+        characters = phase_4.get("characters", {})
+
         pipeline_run_id = input_data.get("pipeline_run_id", "")
 
         mode = config.get("mode", "hybrid")
         style_key = config.get("style", "cinematic")
         max_scenes = config.get("max_scenes")  # For testing: limit number of scenes
 
-        logger.info("media.start", title=title, sections=len(sections), mode=mode, max_scenes=max_scenes)
+        logger.info("media.start", title=title, sections=len(sections), mode=mode, max_scenes=max_scenes, scene_prompts=len(scene_prompts))
 
         if mode == "story":
             # Story mode: audio-first with exact timing
-            voice_data = self._get_voice_data(input_data)
-            word_timestamps = voice_data.get("word_timestamps", [])
-            clean_script = voice_data.get("clean_script", script)
-
-            if word_timestamps:
-                # Use exact timing from audio
-                scenes = self._segment_with_timing(
-                    clean_script, sections, word_timestamps, style_key
-                )
+            if scene_prompts:
+                # Use pre-generated prompts from Phase 4
+                scenes = self._build_scenes_from_prompts(scene_prompts)
+                logger.info("media.using_phase4_prompts", count=len(scenes))
             else:
-                # Fallback to old method if no timestamps
-                scenes = self._extract_scenes_story(sections, style_key)
+                # Fallback: story mode without prompts (legacy path)
+                voice_data = self._get_voice_data(input_data)
+                word_timestamps = voice_data.get("word_timestamps", [])
+                clean_script = voice_data.get("clean_script", script)
+
+                if word_timestamps:
+                    # Use exact timing from audio
+                    scenes = self._segment_with_timing(
+                        clean_script, sections, word_timestamps, style_key
+                    )
+                else:
+                    # Fallback to old method if no timestamps
+                    scenes = self._extract_scenes_story(sections, style_key)
 
             if max_scenes and len(scenes) > max_scenes:
                 logger.info("media.scenes_limited", original=len(scenes), limited=max_scenes)
@@ -100,6 +111,26 @@ class MediaAgent(BaseAgent):
     def _get_voice_data(self, input_data: dict) -> dict:
         """Get voice output — now from Phase 3 (audio-first architecture)."""
         return input_data.get("phase_3_output", {})
+
+    def _build_scenes_from_prompts(self, scene_prompts: list) -> list:
+        """Convert Phase 4 scene_prompts to scene format for image generation."""
+        scenes = []
+        for prompt in scene_prompts:
+            scenes.append({
+                "scene_number": prompt.get("scene_id", len(scenes) + 1),
+                "media_type": "ai_image",
+                "start_time": prompt.get("start", 0.0),
+                "end_time": prompt.get("end", 5.0),
+                "duration_seconds": round(prompt.get("end", 5.0) - prompt.get("start", 0.0), 2),
+                "narration_text": prompt.get("narration_text", ""),
+                "image_prompt": prompt.get("image_prompt", ""),
+                "visual_description": prompt.get("image_prompt", ""),  # For compatibility
+                "effect": prompt.get("effect", "slow_zoom_in"),
+                "camera": prompt.get("camera", ""),
+            })
+
+        logger.info("media.scenes_from_prompts", count=len(scenes))
+        return scenes
 
     def _extract_scenes(self, sections: list) -> list:
         """Use LLM to break script sections into visual scenes."""
