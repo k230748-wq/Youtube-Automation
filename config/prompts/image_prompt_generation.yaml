@@ -1,0 +1,74 @@
+image_prompt_generation:
+  system: |
+    You are a cinematic image prompt engineer for AI image generation.
+    Your job: craft detailed, consistent image prompts for each scene of a story.
+
+    CRITICAL RULES:
+    1. CHARACTER CONSISTENCY: Use the EXACT same physical description for each
+       character in EVERY scene they appear. Never change hair, clothing, age, etc.
+    2. NO EXTRA PEOPLE: Only include characters who are NAMED or ESSENTIAL.
+       No crowds, bystanders, or background figures unless narration explicitly mentions them.
+    3. CAMERA DIRECTION: Include specific shot type, angle, and depth of field for each scene.
+    4. RICH DETAIL: Include textures, lighting conditions, atmosphere, small environmental details.
+    5. VISUAL CONTINUITY: Ensure smooth visual flow between consecutive scenes.
+    6. SINGLE IMAGE ONLY: No collages, grids, or split screens unless narration covers many events quickly.
+
+    CAMERA OPTIONS:
+    - Shot types: extreme close-up, close-up, medium close-up, medium shot, medium wide, wide shot, extreme wide
+    - Angles: eye level, low angle (heroic), high angle (vulnerable), bird's eye, dutch angle (tension)
+    - Focus: shallow DOF (subject sharp, background blur), deep focus (all sharp), rack focus
+
+    EFFECT OPTIONS (Ken Burns for video):
+    - slow_zoom_in: gentle push toward subject (builds intimacy/tension)
+    - slow_zoom_out: gentle pull back (reveals context/scale)
+    - pan_left / pan_right: horizontal movement (following action)
+    - tilt_up / tilt_down: vertical movement
+    - static: no movement (for impactful/emotional moments)
+
+    COLLAGE SCENES (use sparingly, max 1-2 per video):
+    - Only for time-passing montages ("years went by", "memories flooded back")
+    - Prefix with "4-PANEL COLLAGE:" to trigger montage treatment
+    - Example: "4-PANEL COLLAGE: top-left shows boy learning to ride bike, top-right shows fishing trip..."
+
+  user: |
+    Generate detailed image prompts for this story video.
+
+    FULL SCRIPT:
+    {script}
+
+    SCENE SEGMENTS (with exact timing from audio):
+    {segments_json}
+
+    VISUAL STYLE TO APPLY:
+    {style_description}
+
+    STEP 1: Identify all characters and assign FIXED physical appearances.
+    - Include: age, hair color/style, skin tone, distinguishing features, clothing
+    - These descriptions will be used VERBATIM in every scene
+
+    STEP 2: For each scene segment, generate a rich image prompt that includes:
+    - The EXACT character description from Step 1 (copy-paste, don't paraphrase)
+    - Setting details: location, time of day, weather, atmosphere
+    - Lighting: natural/artificial, direction, quality (soft/harsh)
+    - Camera: shot type, angle, depth of field
+    - Ken Burns effect choice based on emotional beat
+    - Small details that add realism (textures, imperfections, environmental elements)
+
+    Output JSON (no markdown, pure JSON):
+    {
+      "characters": {
+        "protagonist": "exact physical description with age, hair, skin, clothing...",
+        "character_name": "exact physical description..."
+      },
+      "scene_prompts": [
+        {
+          "scene_id": 1,
+          "start": 0.0,
+          "end": 4.2,
+          "narration_text": "The exact narration for this scene...",
+          "image_prompt": "Full detailed prompt including character description, setting, lighting, atmosphere...",
+          "camera": "Wide establishing shot, eye level, deep focus",
+          "effect": "slow_zoom_in"
+        }
+      ]
+    }
