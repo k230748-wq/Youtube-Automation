@@ -24,10 +24,11 @@ class PhaseToggle(db.Model):
         defaults = [
             (1, "Ideas Discovery"),
             (2, "Script Generation"),
-            (3, "Media Collection"),
-            (4, "Voice Generation"),
-            (5, "Video Assembly"),
-            (6, "QA & Package"),
+            (3, "Voice Generation"),
+            (4, "Prompt Generation"),
+            (5, "Media Collection"),
+            (6, "Video Assembly"),
+            (7, "QA & Package"),
         ]
         for phase_num, phase_name in defaults:
             existing = PhaseToggle.query.filter_by(phase_number=phase_num).first()
