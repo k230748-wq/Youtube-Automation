@@ -151,6 +151,7 @@ class PipelineOrchestrator:
     def _get_agent(self, agent_name: str):
         from app.agents.ideas_agent import IdeasAgent
         from app.agents.script_agent import ScriptAgent
+        from app.agents.prompt_agent import PromptAgent
         from app.agents.media_agent import MediaAgent
         from app.agents.voice_agent import VoiceAgent
         from app.agents.video_agent import VideoAgent
@@ -159,6 +160,7 @@ class PipelineOrchestrator:
         agents = {
             "ideas_agent": IdeasAgent,
             "script_agent": ScriptAgent,
+            "prompt_agent": PromptAgent,
             "media_agent": MediaAgent,
             "voice_agent": VoiceAgent,
             "video_agent": VideoAgent,
