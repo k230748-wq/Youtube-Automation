@@ -10,7 +10,7 @@ logger = structlog.get_logger(__name__)
 
 class QAAgent(BaseAgent):
     agent_name = "qa_agent"
-    phase_number = 6
+    phase_number = 7
 
     def run(self, input_data: dict, learning_context: list) -> dict:
         pipeline_run_id = input_data.get("pipeline_run_id", "")
@@ -18,19 +18,20 @@ class QAAgent(BaseAgent):
 
         # Gather outputs from all previous phases
         phase_2 = input_data.get("phase_2_output", {})
-        phase_3 = input_data.get("phase_3_output", {})
-        phase_4 = input_data.get("phase_4_output", {})
-        phase_5 = input_data.get("phase_5_output", {})
+        phase_3 = input_data.get("phase_3_output", {})  # Voice
+        phase_5 = input_data.get("phase_5_output", {})  # Media (was phase_4)
+        phase_6 = input_data.get("phase_6_output", {})  # Video (was phase_5)
 
         title = phase_2.get("selected_title", "")
         description = phase_2.get("description", "")
         script = phase_2.get("script", "")
         tags = phase_2.get("tags", [])
         video_id = phase_2.get("video_id")
-        # Phase 3 = Voice (audio-first architecture), Phase 4 = Media
+
+        # Phase 3 = Voice, Phase 5 = Media
         audio_path = phase_3.get("audio_path", "")
-        thumbnail = phase_4.get("thumbnail", {})
-        video_path = phase_5.get("video_path", "")
+        thumbnail = phase_5.get("thumbnail", {})
+        video_path = phase_6.get("video_path", "")
 
         language = input_data.get("language", "en")
 
