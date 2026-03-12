@@ -12,11 +12,11 @@ import {
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 const PHASES = [
-  'Ideas Discovery', 'Script Generation', 'Media Collection',
-  'Voice Generation', 'Video Assembly', 'QA & Package'
+  'Ideas Discovery', 'Script Generation', 'Voice Generation',
+  'Prompt Generation', 'Media Collection', 'Video Assembly', 'QA & Package'
 ];
 
-const PHASE_ICONS = [Lightbulb, FileText, Image, Mic, Film, Package];
+const PHASE_ICONS = [Lightbulb, FileText, Mic, Wand2, Image, Film, Package];
 
 const STATUS_COLORS = {
   pending:           { bg: 'bg-slate-500/10', text: 'text-slate-400', border: 'border-slate-500/30' },
